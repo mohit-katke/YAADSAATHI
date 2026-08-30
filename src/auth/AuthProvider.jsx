@@ -1,0 +1,74 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { clearAuthSession, ensureSeeded, getAuthSession, processSyncQueue, registerUser, rolePath, setAuthSession, verifyCredentials } from '../db/repo'
+
+const AuthContext = createContext(null)
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    async function boot() {
+      try {
+        await ensureSeeded()
+        const auth = await getAuthSession()
+        if (!cancelled) setUser(auth?.user || null)
+        processSyncQueue().catch(() => {})
+      } catch {
+        if (!cancelled) setUser(null)
+      } finally {
+        if (!cancelled) setReady(true)
+      }
+    }
+    boot()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const onOnline = () => processSyncQueue().catch(() => {})
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
+
+  const login = useCallback(async (identifier, password) => {
+    const found = await verifyCredentials(identifier, password)
+    if (!found) return { ok: false }
+    await setAuthSession(found)
+    setUser(found)
+    return { ok: true, user: found, path: rolePath(found.role) }
+  }, [])
+
+  const register = useCallback(async (profile) => {
+    const created = await registerUser(profile)
+    await setAuthSession(created)
+    setUser(created)
+    return { ok: true, user: created, path: rolePath(created.role) }
+  }, [])
+
+  const logout = useCallback(async () => {
+    await clearAuthSession()
+    setUser(null)
+  }, [])
+
+  const refreshUser = useCallback(async () => {
+    const auth = await getAuthSession()
+    setUser(auth?.user || null)
+    return auth?.user || null
+  }, [])
+
+  const value = useMemo(
+    () => ({ user, ready, login, register, logout, refreshUser }),
+    [user, ready, login, register, logout, refreshUser],
+  )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}

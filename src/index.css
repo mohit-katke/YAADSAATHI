@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", "Noto Sans Devanagari", "Noto Sans Bengali", system-ui, sans-serif;
+  --font-devanagari: "Noto Sans Devanagari", "Nunito", sans-serif;
+  --color-cream: #f7f3ec;
+  --color-paper: #fffdf9;
+  --color-ink: #1c241c;
+  --color-muted: #4a5548;
+  --color-line: #d8d0c4;
+  --color-orange: #e06a2c;
+  --color-orange-dark: #c4551c;
+  --color-green: #2e7d4f;
+  --color-green-dark: #246640;
+  --color-blue: #2b6cb0;
+  --color-blue-dark: #21568c;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f7f3ec;
+  color: #1c241c;
+  font-family: var(--font-sans);
+}
+
+button,
+a,
+input,
+select {
+  font-family: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #2b6cb0;
+  outline-offset: 3px;
+}
