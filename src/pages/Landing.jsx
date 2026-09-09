@@ -94,8 +94,6 @@ export default function Landing() {
           {t('createAccount')}
         </Link>
 
-        <p className="mt-4 text-center text-sm font-semibold text-muted">{t('demoLoginHint')}</p>
-
         <div className="mt-6">
           <OfflineBanner />
         </div>

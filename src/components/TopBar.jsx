@@ -46,7 +46,7 @@ export default function TopBar({ backTo, backLabel, showHome = true, showExit = 
             }}
             className="min-h-12 rounded-xl border-2 border-line bg-paper px-4 text-lg font-bold text-ink"
           >
-            {t('exit')}
+            {t('logout')}
           </button>
         ) : null}
       </div>

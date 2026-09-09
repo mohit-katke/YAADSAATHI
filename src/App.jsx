@@ -9,6 +9,7 @@ import VoiceAssist from './pages/VoiceAssist'
 import StoryRecall from './pages/StoryRecall'
 import CaregiverDashboard from './pages/CaregiverDashboard'
 import DoctorDashboard from './pages/DoctorDashboard'
+import RecognitionGame from './pages/RecognitionGame'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import { useAuth } from './auth/AuthProvider'
 
@@ -71,6 +72,7 @@ export default function App() {
             </RequireSession>
           }
         />
+        <Route path="/patient/recognize/:kind" element={<RequireSession><RecognitionGame /></RequireSession>} />
         <Route
           path="/patient/voice"
           element={

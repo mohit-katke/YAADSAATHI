@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import TopBar from '../components/TopBar'
-import { addTelemetry, enqueueSync, getLinkedPatient } from '../db/repo'
+import { addTelemetry, enqueueSync, getLinkedPatient, saveActivitySession } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
@@ -22,6 +22,17 @@ export default function StoryRecall() {
       data: { a1, a2 },
     })
     await enqueueSync({ kind: 'story_recall', payload: { a1, a2, userId } })
+    const accuracy = Number(Boolean(a1.trim())) * 50 + Number(Boolean(a2.trim())) * 50
+    await saveActivitySession({
+      userId,
+      gameType: 'story-recall',
+      game: 'Story Recall',
+      score: accuracy,
+      accuracy,
+      reactionLatency: 0,
+      difficulty: 'Easy',
+      details: { a1, a2 },
+    })
     setSaved(true)
   }
 

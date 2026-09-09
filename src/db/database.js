@@ -10,10 +10,22 @@ export const db = new Dexie('YaadSaathiDB')
 
 db.version(1).stores({
   users: 'id, email, mobile, role',
-  sessions: 'id, userId, type, createdAt',
+  sessions: 'id, userId, type, gameType, createdAt',
   gameScores: 'id, userId, createdAt',
   telemetry: 'id, userId, createdAt, kind',
   reminders: 'id, userId',
   settings: 'id, userId',
+  syncQueue: 'id, status, createdAt',
+})
+
+db.version(2).stores({
+  users: 'id, email, mobile, role',
+  sessions: 'id, userId, type, gameType, createdAt',
+  gameScores: 'id, userId, createdAt',
+  telemetry: 'id, userId, createdAt, kind',
+  reminders: 'id, userId',
+  settings: 'id, userId',
+  familiarPeople: 'id, patientId, createdAt',
+  familiarPlaces: 'id, patientId, createdAt',
   syncQueue: 'id, status, createdAt',
 })

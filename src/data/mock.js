@@ -83,6 +83,29 @@ export const GAME_PAIRS = [
   { pairId: 'bird', emoji: '🕊️', label: 'Bird' },
 ]
 
+export const DEMO_FAMILIAR_PEOPLE = [
+  { id: 'person-anita', name: 'Anita', relationship: 'Daughter', emoji: '👩🏽' },
+  { id: 'person-raj', name: 'Raj', relationship: 'Son', emoji: '👨🏽' },
+  { id: 'person-mina', name: 'Mina', relationship: 'Caregiver', emoji: '👩🏾' },
+  { id: 'person-sharma', name: 'Dr. Sharma', relationship: 'Doctor', emoji: '🧑🏽‍⚕️' },
+]
+
+export const DEMO_FAMILIAR_PLACES = [
+  { id: 'place-home', name: 'Home', description: 'A comfortable place to rest', emoji: '🏠' },
+  { id: 'place-market', name: 'Local Market', description: 'The nearby market', emoji: '🛍️' },
+  { id: 'place-clinic', name: "Doctor's Clinic", description: 'A place for appointments', emoji: '🏥' },
+  { id: 'place-park', name: 'Park', description: 'A peaceful place for a walk', emoji: '🌳' },
+]
+
+export const DEMO_EVERYDAY_OBJECTS = [
+  { id: 'object-cup', name: 'Cup', emoji: '☕' },
+  { id: 'object-keys', name: 'Keys', emoji: '🔑' },
+  { id: 'object-phone', name: 'Phone', emoji: '📱' },
+  { id: 'object-clock', name: 'Clock', emoji: '🕰️' },
+  { id: 'object-medicine', name: 'Medicine organizer', emoji: '💊' },
+  { id: 'object-stick', name: 'Walking stick', emoji: '🦯' },
+]
+
 export const LEVEL_ORDER = ['Easy', 'Medium', 'Hard']
 
 export function pairsForDifficulty(level) {

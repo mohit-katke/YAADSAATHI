@@ -47,7 +47,7 @@ export default function PatientDashboard() {
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-6 pb-28">
-      <TopBar backTo="/role" backLabel={t('roles')} showExit />
+      <TopBar showHome={false} showExit />
       <p className="text-3xl font-extrabold text-ink sm:text-4xl">{t('namaste')}</p>
       <p className="mt-1 text-xl font-semibold text-muted">{name}</p>
 
@@ -56,27 +56,28 @@ export default function PatientDashboard() {
       </div>
 
       <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
-        <h2 className="text-xl font-extrabold">{t('todaysActivity')}</h2>
-        <p className="mt-2 text-2xl font-bold text-ink">{TODAY_ACTIVITY.title}</p>
+        <h2 className="text-xl font-extrabold">Today's Activities</h2>
         <p className="mt-1 text-lg text-muted">{TODAY_ACTIVITY.time}</p>
-        <p className="mt-3 inline-block rounded-full bg-green/15 px-4 py-2 text-lg font-extrabold text-green-dark">
-          {TODAY_ACTIVITY.status}
-        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {[
+            ['/patient/game', '🧩', t('memoryMatch'), 'Find matching pairs'],
+            ['/patient/recognize/people', '👨‍👩‍👧', 'Who Is This?', 'Recognize familiar people'],
+            ['/patient/recognize/places', '🏠', 'Familiar Places', 'Recognize routine places'],
+            ['/patient/recognize/objects', '☕', 'Everyday Objects', 'Recognize useful objects'],
+            ['/patient/story', '📖', t('storyRecall'), t('storyHint')],
+            ['/patient/routine', '☀️', t('dailyRoutine'), 'Simple steps for today'],
+          ].map(([path, icon, title, description]) => (
+            <button key={path} type="button" onClick={() => navigate(path)} className="rounded-2xl border-2 border-line bg-cream p-4 text-left">
+              <span className="text-4xl" aria-hidden="true">{icon}</span>
+              <p className="mt-2 text-xl font-extrabold">{title}</p>
+              <p className="mt-1 text-base text-muted">{description}</p>
+              <span className="mt-3 inline-block rounded-xl bg-orange px-4 py-2 text-base font-extrabold text-white">Start</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <div className="mt-5 grid gap-3">
-        <button type="button" onClick={() => go('/patient/game', 'voiceGame')} className="min-h-16 rounded-3xl bg-orange text-2xl font-extrabold text-white">
-          {t('startCognitive')}
-        </button>
-        <button type="button" onClick={() => go('/patient/game', 'voiceGame')} className="min-h-16 rounded-3xl border-2 border-orange bg-paper text-2xl font-extrabold text-orange-dark">
-          {t('memoryMatch')}
-        </button>
-        <button type="button" onClick={() => go('/patient/routine', 'voiceRoutine')} className="min-h-16 rounded-3xl bg-green text-2xl font-extrabold text-white">
-          {t('dailyRoutine')}
-        </button>
-        <button type="button" onClick={() => go('/patient/story', 'voiceGame')} className="min-h-16 rounded-3xl border-2 border-green bg-paper text-2xl font-extrabold text-green-dark">
-          {t('storyRecall')}
-        </button>
         <button type="button" onClick={() => go('/patient/voice', 'voiceReminder')} className="min-h-16 rounded-3xl bg-blue text-2xl font-extrabold text-white">
           {t('voiceAssist')}
         </button>

@@ -83,11 +83,9 @@ export default function MemoryGame() {
   useEffect(() => {
     const result = voiceEngine.speak(tVoice('voiceGame'), voiceLang)
     if (result.fallback) {
-      const used = LANGS.find((l) => l.id === result.used)?.native || result.used
-      setVoiceNote(t('voiceUnavailable', { lang: used }))
-    } else {
-      setVoiceNote('')
-    }
+      const requested = LANGS.find((l) => l.id === voiceLang)?.native || voiceLang
+      setVoiceNote(t('voiceUnavailable', { lang: requested }))
+    } else setVoiceNote('')
   }, [t, tVoice, voiceLang])
 
   const complete = pairCount > 0 && matched.length === pairCount

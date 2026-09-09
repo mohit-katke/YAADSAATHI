@@ -2,7 +2,6 @@ import { useState } from 'react'
 import TopBar from '../components/TopBar'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
-import { LANGS } from '../i18n/strings'
 
 export default function VoiceAssist() {
   const { t, tVoice, voiceLang } = useI18n()
@@ -19,13 +18,9 @@ export default function VoiceAssist() {
     const result = voiceEngine.speak(next, voiceLang, {
       onStart: () => setSpeaking(true),
       onEnd: () => setSpeaking(false),
+      onError: () => setNote(t('voiceUnavailableFriendly')),
     })
-    if (result.fallback) {
-      const used = LANGS.find((l) => l.id === result.used)?.native || result.used
-      setNote(t('voiceUnavailable', { lang: used }))
-    } else {
-      setNote('')
-    }
+    setNote(result.fallback ? t('voiceUnavailableFriendly') : '')
   }
 
   return (
@@ -47,6 +42,7 @@ export default function VoiceAssist() {
         </button>
         <p className="mt-6 text-center text-2xl font-extrabold leading-snug">{line}</p>
         <p className="mt-4 text-lg font-bold text-muted">{speaking ? t('speaking') : t('tapMic')}</p>
+        {note ? <p className="mt-3 text-center text-base font-bold text-orange-dark">{note}</p> : null}
       </div>
     </div>
   )
