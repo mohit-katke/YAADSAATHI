@@ -43,7 +43,9 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true,
+        // Avoid stale service-worker bundles while developing. Production
+        // builds still generate and register the full offline PWA worker.
+        enabled: false,
         navigateFallback: 'index.html',
       },
     }),

@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
+import { voiceEngine } from '../voice/speech'
 
 export default function LanguageSwitcher() {
-  const { t, textLang, voiceLang, setTextLang, setVoiceLang, swapPreferred, langs } = useI18n()
+  const { t, tVoice, textLang, voiceLang, setTextLang, setVoiceLang, swapPreferred, langs } = useI18n()
   const [open, setOpen] = useState(false)
+  const [voiceReady, setVoiceReady] = useState(() => voiceEngine.isVoiceAvailable(voiceLang))
+  const [voiceNote, setVoiceNote] = useState('')
+
+  useEffect(() => {
+    setVoiceReady(voiceEngine.isVoiceAvailable(voiceLang))
+    return voiceEngine.subscribeToVoiceChanges(() => setVoiceReady(voiceEngine.isVoiceAvailable(voiceLang)))
+  }, [voiceLang])
+
+  function testVoice() {
+    const result = voiceEngine.speak(tVoice('voiceTest'), voiceLang)
+    setVoiceNote(result.fallback ? t('voiceUnavailableFriendly') : t('voiceTestStarted'))
+  }
 
   useEffect(() => {
     function onKey(event) {
@@ -35,6 +48,13 @@ export default function LanguageSwitcher() {
               </button>
             ))}
           </div>
+          <p className="mt-2 text-sm font-semibold text-muted">
+            {voiceReady ? t('voiceAvailable') : t('voiceUnavailableFriendly')}
+          </p>
+          <button type="button" onClick={testVoice} className="mt-2 min-h-12 w-full rounded-xl bg-blue text-base font-extrabold text-white">
+            {t('testVoice')}
+          </button>
+          {voiceNote ? <p className="mt-2 text-sm font-bold text-muted">{voiceNote}</p> : null}
 
           <p className="mt-4 text-base font-bold">{t('changeVoice')}</p>
           <div className="mt-2 grid grid-cols-3 gap-2">

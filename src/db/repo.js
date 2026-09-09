@@ -1,6 +1,13 @@
 import { DEMO_IDS, db } from './database'
 import { hashPassword, looksLikeEmail, newId, normalizeEmail, normalizeMobile } from './crypto'
-import { DEFAULT_REMINDERS, DEFAULT_ROUTINE, SESSION_HISTORY } from '../data/mock'
+import {
+  DEFAULT_REMINDERS,
+  DEFAULT_ROUTINE,
+  DEMO_FAMILIAR_PEOPLE,
+  DEMO_FAMILIAR_PLACES,
+  SESSION_HISTORY,
+} from '../data/mock'
+import { uploadFirestoreRecord } from '../firebase/client'
 
 const AUTH_SESSION_ID = 'auth_current'
 const DEVICE_SETTINGS_ID = 'settings_device'
@@ -78,12 +85,20 @@ export async function ensureSeeded() {
     createdAt: now,
   })
 
+  await db.familiarPeople.bulkAdd(
+    DEMO_FAMILIAR_PEOPLE.map((person) => ({ ...person, patientId: DEMO_IDS.patient, imageAsset: null, createdAt: now, updatedAt: now })),
+  )
+  await db.familiarPlaces.bulkAdd(
+    DEMO_FAMILIAR_PLACES.map((place) => ({ ...place, patientId: DEMO_IDS.patient, imageAsset: null, createdAt: now, updatedAt: now })),
+  )
+
   await db.sessions.bulkAdd(
     SESSION_HISTORY.map((row, index) => ({
       id: row.id,
       userId: DEMO_IDS.patient,
       type: 'cognitive',
       game: row.game,
+      gameType: row.game.toLowerCase().replaceAll(' ', '-'),
       dateLabel: row.date,
       accuracy: row.accuracy,
       avgReactionMs: row.latency,
@@ -316,23 +331,40 @@ export async function listCognitiveSessions(userId) {
   return rows.filter((row) => row.type === 'cognitive').sort((a, b) => b.createdAt - a.createdAt)
 }
 
+export async function listFamiliarPeople(patientId) {
+  return db.familiarPeople.where('patientId').equals(patientId).toArray()
+}
+
+export async function listFamiliarPlaces(patientId) {
+  return db.familiarPlaces.where('patientId').equals(patientId).toArray()
+}
+
+export async function saveFamiliarPerson(patientId, person) {
+  const row = { ...person, id: person.id || newId('person'), patientId, createdAt: person.createdAt || Date.now(), updatedAt: Date.now() }
+  await db.familiarPeople.put(row)
+  return row
+}
+
+export async function saveFamiliarPlace(patientId, place) {
+  const row = { ...place, id: place.id || newId('place'), patientId, createdAt: place.createdAt || Date.now(), updatedAt: Date.now() }
+  await db.familiarPlaces.put(row)
+  return row
+}
+
 export async function listGameScores(userId) {
   return db.gameScores.where('userId').equals(userId).reverse().sortBy('createdAt')
 }
 
-export async function saveCompletedGame({ userId, score, matches, tries, avgReactionMs, difficulty, pairCount }) {
-  const accuracy = tries ? Math.round((matches / tries) * 100) : 0
+export async function saveActivitySession({ userId, gameType, game, score = 0, accuracy = 0, reactionLatency = 0, difficulty = 'Easy', completed = true, details = {} }) {
   const createdAt = Date.now()
   const scoreRow = {
     id: newId('score'),
     userId,
-    game: 'Memory Match',
+    game,
+    gameType,
     score,
-    matches,
-    tries,
-    pairCount,
     accuracy,
-    avgReactionMs,
+    avgReactionMs: reactionLatency,
     difficulty,
     createdAt,
   }
@@ -340,14 +372,16 @@ export async function saveCompletedGame({ userId, score, matches, tries, avgReac
     id: newId('sess'),
     userId,
     type: 'cognitive',
-    game: 'Memory Match',
+    game,
+    gameType,
     dateLabel: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
     accuracy,
-    avgReactionMs,
+    avgReactionMs: reactionLatency,
+    reactionLatency,
     difficulty,
     score,
-    tries,
-    matches,
+    completed,
+    details,
     createdAt,
   }
   await db.gameScores.add(scoreRow)
@@ -359,9 +393,23 @@ export async function saveCompletedGame({ userId, score, matches, tries, avgReac
   await addTelemetry({
     userId,
     kind: 'game_complete',
-    data: { score, accuracy, avgReactionMs, difficulty },
+    data: { score, accuracy, reactionLatency, difficulty, gameType },
   })
   return { scoreRow, sessionRow }
+}
+
+export async function saveCompletedGame({ userId, score, matches, tries, avgReactionMs, difficulty, pairCount }) {
+  const accuracy = tries ? Math.round((matches / tries) * 100) : 0
+  return saveActivitySession({
+    userId,
+    gameType: 'memory-match',
+    game: 'Memory Match',
+    score,
+    accuracy,
+    reactionLatency: avgReactionMs,
+    difficulty,
+    details: { matches, tries, pairCount },
+  })
 }
 
 export async function addTelemetry({ userId, kind, data }) {
@@ -389,14 +437,18 @@ export async function processSyncQueue() {
     return { processed: 0, note: 'offline' }
   }
   const queued = await db.syncQueue.where('status').equals('queued').toArray()
+  let processed = 0
   for (const item of queued) {
-    await db.syncQueue.update(item.id, {
-      status: 'ready_for_backend',
-      note: 'Queued for future Firebase/Firestore sync. Not uploaded yet.',
-      updatedAt: Date.now(),
-    })
+    try {
+      const uploaded = await uploadFirestoreRecord(item)
+      if (!uploaded) continue
+      await db.syncQueue.update(item.id, { status: 'synced', syncedAt: Date.now(), updatedAt: Date.now() })
+      processed += 1
+    } catch (error) {
+      await db.syncQueue.update(item.id, { lastAttemptAt: Date.now(), error: error.message || 'Upload failed' })
+    }
   }
-  return { processed: queued.length, note: 'ready_for_backend' }
+  return { processed, note: processed ? 'synced' : 'queued' }
 }
 
 export function rolePath(role) {

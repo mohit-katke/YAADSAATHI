@@ -11,7 +11,11 @@ import {
   getReminders,
   listCognitiveSessions,
   listGameScores,
+  listFamiliarPeople,
+  listFamiliarPlaces,
   saveDoctorAuthorized,
+  saveFamiliarPerson,
+  saveFamiliarPlace,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
@@ -28,18 +32,25 @@ export default function CaregiverDashboard() {
   const [scores, setScores] = useState([])
   const [sessions, setSessions] = useState([])
   const [authorized, setAuthorized] = useState(true)
+  const [people, setPeople] = useState([])
+  const [places, setPlaces] = useState([])
+  const [familiarForm, setFamiliarForm] = useState(null)
 
   async function reload(userId) {
-    const [rems, games, history, authz] = await Promise.all([
+    const [rems, games, history, authz, familiarPeople, familiarPlaces] = await Promise.all([
       getReminders(userId),
       listGameScores(userId),
       listCognitiveSessions(userId),
       getDoctorAuthorized(userId),
+      listFamiliarPeople(userId),
+      listFamiliarPlaces(userId),
     ])
     setReminders(rems)
     setScores(games)
     setSessions(history)
     setAuthorized(authz)
+    setPeople(familiarPeople)
+    setPlaces(familiarPlaces)
   }
 
   useEffect(() => {
@@ -79,9 +90,34 @@ export default function CaregiverDashboard() {
     setToast(t('reminderSaved'))
   }
 
+  async function saveFamiliar(event) {
+    event.preventDefault()
+    if (!patientId || !familiarForm?.name.trim()) return
+    if (familiarForm.kind === 'person') {
+      await saveFamiliarPerson(patientId, { name: familiarForm.name.trim(), relationship: familiarForm.detail.trim(), emoji: '👤' })
+    } else {
+      await saveFamiliarPlace(patientId, { name: familiarForm.name.trim(), description: familiarForm.detail.trim(), emoji: '📍' })
+    }
+    await reload(patientId)
+    setFamiliarForm(null)
+    setToast('Saved on this device.')
+  }
+
+  async function shareReport() {
+    const report = `YaadSaathi activity report for ${patient?.fullName || PATIENT.name}\nSessions: ${sessions.length}\nAverage reaction: ${avgReaction} ms`
+    if (navigator.share) {
+      await navigator.share({ title: 'YaadSaathi activity report', text: report })
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(report)
+      setToast('Report copied to the clipboard.')
+    } else {
+      setToast(report)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-5 py-6 pb-28">
-      <TopBar backTo="/role" backLabel={t('roles')} showExit />
+      <TopBar showHome={false} showExit />
       <h1 className="text-3xl font-extrabold">{t('caregiver')}</h1>
       <p className="mt-1 text-xl text-muted">{t('lookingAfter', { name: patient?.fullName || PATIENT.name })}</p>
       <div className="mt-4">
@@ -113,6 +149,37 @@ export default function CaregiverDashboard() {
       ) : null}
 
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Patient Activity</h2>
+        <div className="mt-3 space-y-2">
+          {['Memory Match', 'Who Is This?', 'Familiar Places', 'Everyday Objects', 'Story Recall', 'Daily Routine'].map((activity) => {
+            const session = sessions.find((row) => row.game === activity)
+            return (
+              <div key={activity} className="flex items-center justify-between gap-3 rounded-xl bg-cream px-4 py-3">
+                <span className="font-bold">{activity}</span>
+                <span className="text-right text-sm font-bold text-muted">{session ? `Completed · ${session.accuracy}%` : 'Not completed'}</span>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Familiar People & Places</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl bg-cream p-4">
+            <p className="text-lg font-extrabold">People</p>
+            <p className="mt-1 text-muted">{people.map((person) => person.name).join(', ') || 'No people added yet'}</p>
+            <button type="button" onClick={() => setFamiliarForm({ kind: 'person', name: '', detail: '' })} className="mt-3 min-h-12 rounded-xl bg-green px-4 text-base font-extrabold text-white">Add Familiar Person</button>
+          </div>
+          <div className="rounded-2xl bg-cream p-4">
+            <p className="text-lg font-extrabold">Places</p>
+            <p className="mt-1 text-muted">{places.map((place) => place.name).join(', ') || 'No places added yet'}</p>
+            <button type="button" onClick={() => setFamiliarForm({ kind: 'place', name: '', detail: '' })} className="mt-3 min-h-12 rounded-xl bg-blue px-4 text-base font-extrabold text-white">Add Familiar Place</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <BarChart data={trend} label={t('activityWeek')} />
       </section>
 
@@ -136,7 +203,7 @@ export default function CaregiverDashboard() {
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => setToast(t('reportShared', { name: PATIENT.doctor }))}
+          onClick={shareReport}
           className="min-h-14 rounded-2xl bg-blue text-xl font-extrabold text-white"
         >
           {t('shareReport')}
@@ -174,6 +241,30 @@ export default function CaregiverDashboard() {
             <button type="button" onClick={() => setOpen(false)} className="min-h-14 rounded-2xl border-2 border-line text-lg font-extrabold">
               {t('cancel')}
             </button>
+          </div>
+        </form>
+      ) : null}
+
+      {familiarForm ? (
+        <form onSubmit={saveFamiliar} className="mt-5 rounded-3xl border-2 border-blue bg-paper p-5">
+          <h2 className="text-xl font-extrabold">{familiarForm.kind === 'person' ? 'Add Familiar Person' : 'Add Familiar Place'}</h2>
+          <input
+            required
+            autoFocus
+            value={familiarForm.name}
+            onChange={(event) => setFamiliarForm((current) => ({ ...current, name: event.target.value }))}
+            placeholder={familiarForm.kind === 'person' ? 'Name' : 'Place name'}
+            className="mt-3 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl"
+          />
+          <input
+            value={familiarForm.detail}
+            onChange={(event) => setFamiliarForm((current) => ({ ...current, detail: event.target.value }))}
+            placeholder={familiarForm.kind === 'person' ? 'Relationship' : 'Description'}
+            className="mt-3 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl"
+          />
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button type="submit" className="min-h-14 rounded-2xl bg-green text-lg font-extrabold text-white">{t('save')}</button>
+            <button type="button" onClick={() => setFamiliarForm(null)} className="min-h-14 rounded-2xl border-2 border-line text-lg font-extrabold">{t('cancel')}</button>
           </div>
         </form>
       ) : null}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import TopBar from '../components/TopBar'
 import { DEFAULT_ROUTINE } from '../data/mock'
-import { getLinkedPatient, getRoutine, saveRoutine } from '../db/repo'
+import { getLinkedPatient, getRoutine, saveActivitySession, saveRoutine } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
@@ -34,6 +34,18 @@ export default function DailyRoutine() {
     const next = items.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
     setItems(next)
     await saveRoutine(patientId, next)
+    if (next.every((item) => item.done)) {
+      await saveActivitySession({
+        userId: patientId,
+        gameType: 'daily-routine',
+        game: 'Daily Routine',
+        score: next.length * 10,
+        accuracy: 100,
+        reactionLatency: 0,
+        difficulty: 'Easy',
+        details: { items: next },
+      })
+    }
   }
 
   return (

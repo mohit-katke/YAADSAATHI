@@ -80,7 +80,7 @@ export default function DoctorDashboard() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-6 pb-28">
-      <TopBar backTo="/role" backLabel={t('roles')} showExit />
+      <TopBar showHome={false} showExit />
       <h1 className="text-3xl font-extrabold">{t('doctor')}</h1>
       <p className="mt-1 text-xl text-muted">{patient?.specialization || user?.specialization || 'Geriatric care'}</p>
       <div className="mt-4">
@@ -104,6 +104,24 @@ export default function DoctorDashboard() {
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <p className="text-lg font-extrabold">{t('caregiverAuth')}</p>
         <p className="mt-2 text-xl font-bold">{authorized ? t('authorized') : t('notAuthorized')}</p>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Activity breakdown</h2>
+        <p className="mt-1 text-sm font-semibold text-muted">Prototype engagement metrics, not diagnostic results.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {[
+            ['Memory Match', '82%'],
+            ['Familiar People', '76%'],
+            ['Familiar Places', '88%'],
+            ['Everyday Objects', '91%'],
+            ['Story Recall', '79%'],
+          ].map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between rounded-xl bg-cream px-4 py-3 text-lg font-bold">
+              <span>{label}</span><span className="text-green-dark">{value}</span>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
