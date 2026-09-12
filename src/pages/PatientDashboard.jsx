@@ -56,22 +56,22 @@ export default function PatientDashboard() {
       </div>
 
       <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
-        <h2 className="text-xl font-extrabold">Today's Activities</h2>
+        <h2 className="text-xl font-extrabold">{t('activities')}</h2>
         <p className="mt-1 text-lg text-muted">{TODAY_ACTIVITY.time}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {[
-            ['/patient/game', '🧩', t('memoryMatch'), 'Find matching pairs'],
-            ['/patient/recognize/people', '👨‍👩‍👧', 'Who Is This?', 'Recognize familiar people'],
-            ['/patient/recognize/places', '🏠', 'Familiar Places', 'Recognize routine places'],
-            ['/patient/recognize/objects', '☕', 'Everyday Objects', 'Recognize useful objects'],
+            ['/patient/game', '🧩', t('memoryMatch'), t('findMatchingPairs')],
+            ['/patient/recognize/people', '👨‍👩‍👧', t('whoIsThis'), t('recognizeFamiliarPeople')],
+            ['/patient/recognize/places', '🏠', t('familiarPlaces'), t('recognizeRoutinePlaces')],
+            ['/patient/recognize/objects', '☕', t('everydayObjects'), t('recognizeUsefulObjects')],
             ['/patient/story', '📖', t('storyRecall'), t('storyHint')],
-            ['/patient/routine', '☀️', t('dailyRoutine'), 'Simple steps for today'],
+            ['/patient/routine', '☀️', t('dailyRoutine'), t('simpleSteps')],
           ].map(([path, icon, title, description]) => (
             <button key={path} type="button" onClick={() => navigate(path)} className="rounded-2xl border-2 border-line bg-cream p-4 text-left">
               <span className="text-4xl" aria-hidden="true">{icon}</span>
               <p className="mt-2 text-xl font-extrabold">{title}</p>
               <p className="mt-1 text-base text-muted">{description}</p>
-              <span className="mt-3 inline-block rounded-xl bg-orange px-4 py-2 text-base font-extrabold text-white">Start</span>
+              <span className="mt-3 inline-block rounded-xl bg-orange px-4 py-2 text-base font-extrabold text-white">{t('start')}</span>
             </button>
           ))}
         </div>

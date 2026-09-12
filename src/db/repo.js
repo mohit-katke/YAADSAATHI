@@ -5,7 +5,9 @@ import {
   DEFAULT_ROUTINE,
   DEMO_FAMILIAR_PEOPLE,
   DEMO_FAMILIAR_PLACES,
+  DEMO_FAMILIAR_THINGS,
   SESSION_HISTORY,
+  normalizeDifficultyLevel,
 } from '../data/mock'
 import { uploadFirestoreRecord } from '../firebase/client'
 
@@ -90,6 +92,9 @@ export async function ensureSeeded() {
   )
   await db.familiarPlaces.bulkAdd(
     DEMO_FAMILIAR_PLACES.map((place) => ({ ...place, patientId: DEMO_IDS.patient, imageAsset: null, createdAt: now, updatedAt: now })),
+  )
+  await db.familiarThings.bulkAdd(
+    DEMO_FAMILIAR_THINGS.map((thing) => ({ ...thing, patientId: DEMO_IDS.patient, imageAsset: null, createdAt: now, updatedAt: now })),
   )
 
   await db.sessions.bulkAdd(
@@ -339,16 +344,204 @@ export async function listFamiliarPlaces(patientId) {
   return db.familiarPlaces.where('patientId').equals(patientId).toArray()
 }
 
+export async function listFamiliarThings(patientId) {
+  return db.familiarThings.where('patientId').equals(patientId).toArray()
+}
+
 export async function saveFamiliarPerson(patientId, person) {
-  const row = { ...person, id: person.id || newId('person'), patientId, createdAt: person.createdAt || Date.now(), updatedAt: Date.now() }
+  const row = {
+    ...person,
+    id: person.id || newId('person'),
+    patientId,
+    kind: 'person',
+    createdAt: person.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  }
   await db.familiarPeople.put(row)
   return row
 }
 
 export async function saveFamiliarPlace(patientId, place) {
-  const row = { ...place, id: place.id || newId('place'), patientId, createdAt: place.createdAt || Date.now(), updatedAt: Date.now() }
+  const row = {
+    ...place,
+    id: place.id || newId('place'),
+    patientId,
+    kind: 'place',
+    createdAt: place.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  }
   await db.familiarPlaces.put(row)
   return row
+}
+
+export async function saveFamiliarThing(patientId, thing) {
+  const row = {
+    ...thing,
+    id: thing.id || newId('thing'),
+    patientId,
+    kind: 'thing',
+    createdAt: thing.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  }
+  await db.familiarThings.put(row)
+  return row
+}
+
+export async function saveRecognitionItem({ id, patientId, kind, name, relationship = '', description = '', imageDataUrl = '', imageName = '', imageMime = '', createdByRole = 'caregiver' }) {
+  const existing = id ? await db.recognitionItems.get(id) : null
+  const category = String(kind || arguments[0]?.category || '').trim().toLowerCase()
+  const safeCategory = ['person', 'place', 'thing'].includes(category) ? category : 'thing'
+  const question = String(arguments[0]?.question || name || '').trim() || (
+    safeCategory === 'person' ? 'Who is this?' : safeCategory === 'place' ? 'What place is this?' : 'What is this?'
+  )
+  const optionList = Array.isArray(arguments[0]?.options)
+    ? arguments[0].options.map((option) => String(option || '').trim()).filter(Boolean)
+    : []
+  const entries = optionList.length >= 4 ? optionList.slice(0, 4) : [
+    String(arguments[0]?.option1 || arguments[0]?.options?.[0] || '').trim(),
+    String(arguments[0]?.option2 || arguments[0]?.options?.[1] || '').trim(),
+    String(arguments[0]?.option3 || arguments[0]?.options?.[2] || '').trim(),
+    String(arguments[0]?.option4 || arguments[0]?.options?.[3] || '').trim(),
+  ].filter(Boolean)
+
+  while (entries.length < 4) {
+    entries.push(`Option ${entries.length + 1}`)
+  }
+
+  const correctAnswer = String(arguments[0]?.correctAnswer || relationship || name || entries[0] || '').trim()
+  const finalCorrectAnswer = entries.includes(correctAnswer) ? correctAnswer : entries[0]
+  const row = {
+    id: id || newId('rec'),
+    patientId,
+    category: safeCategory,
+    question,
+    options: entries.slice(0, 4),
+    correctAnswer: finalCorrectAnswer,
+    difficulty: normalizeDifficultyLevel(arguments[0]?.difficulty || 'Level 1', 'Level 1'),
+    imageDataUrl: String(imageDataUrl || existing?.imageDataUrl || existing?.imageBlob || '').trim(),
+    imageBlob: String(imageDataUrl || existing?.imageBlob || existing?.imageDataUrl || '').trim(),
+    imageName: String(imageName || existing?.imageName || '').trim(),
+    imageMime: String(imageMime || existing?.imageMime || '').trim(),
+    createdBy: existing?.createdBy || createdByRole,
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now(),
+    name: String(name || '').trim(),
+    relationship: String(relationship || '').trim(),
+    description: String(description || '').trim(),
+    kind: safeCategory,
+  }
+
+  if (existing && existing.category !== safeCategory) {
+    if (existing.category === 'person') await db.familiarPeople.delete(existing.id)
+    if (existing.category === 'place') await db.familiarPlaces.delete(existing.id)
+    if (existing.category === 'thing') await db.familiarThings.delete(existing.id)
+  }
+
+  if (id) await db.recognitionItems.put(row)
+  else await db.recognitionItems.add(row)
+
+  if (patientId) {
+    const existingLegacy = await db.familiarPeople.get(row.id)
+    if (!existingLegacy) {
+      // compatibility path maintained for older data format
+    }
+  }
+
+  if (safeCategory === 'person') {
+    await db.familiarPeople.put({
+      id: row.id,
+      patientId,
+      name: String(name || '').trim() || finalCorrectAnswer,
+      relationship: String(relationship || '').trim(),
+      description: String(description || '').trim(),
+      emoji: '👤',
+      imageDataUrl: row.imageDataUrl,
+      kind: 'person',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+  } else if (safeCategory === 'place') {
+    await db.familiarPlaces.put({
+      id: row.id,
+      patientId,
+      name: String(name || '').trim() || finalCorrectAnswer,
+      description: String(description || '').trim(),
+      emoji: '📍',
+      imageDataUrl: row.imageDataUrl,
+      kind: 'place',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+  } else if (safeCategory === 'thing') {
+    await db.familiarThings.put({
+      id: row.id,
+      patientId,
+      name: String(name || '').trim() || finalCorrectAnswer,
+      description: String(description || '').trim(),
+      emoji: '🧩',
+      imageDataUrl: row.imageDataUrl,
+      kind: 'thing',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+  }
+
+  return row
+}
+
+export async function deleteRecognitionItem(id) {
+  const item = await db.recognitionItems.get(id)
+  await db.recognitionItems.delete(id)
+  if (item?.category === 'person') await db.familiarPeople.delete(id)
+  if (item?.category === 'place') await db.familiarPlaces.delete(id)
+  if (item?.category === 'thing') await db.familiarThings.delete(id)
+}
+
+export async function listRecognitionItems(patientId) {
+  const [custom, people, places, things] = await Promise.all([
+    db.recognitionItems.where('patientId').equals(patientId).toArray(),
+    listFamiliarPeople(patientId),
+    listFamiliarPlaces(patientId),
+    listFamiliarThings(patientId),
+  ])
+
+  const customIds = new Set(custom.map((item) => item.id))
+  const legacy = [
+    ...people.map((item) => ({ ...item, kind: 'person' })),
+    ...places.map((item) => ({ ...item, kind: 'place' })),
+    ...things.map((item) => ({ ...item, kind: 'thing' })),
+  ].filter((item) => !customIds.has(item.id))
+
+  return [
+    ...custom.map((item) => ({
+      ...item,
+      id: item.id,
+      category: item.category || item.kind || 'thing',
+      name: item.name || item.correctAnswer || 'Question',
+      question: item.question || 'What is this?',
+      options: Array.isArray(item.options) && item.options.length >= 4 ? item.options.slice(0, 4) : [item.correctAnswer || 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
+      correctAnswer: item.correctAnswer || item.options?.[0] || 'Option 1',
+      imageDataUrl: item.imageDataUrl || item.imageBlob || '',
+      difficulty: normalizeDifficultyLevel(item.difficulty || 'Level 1', 'Level 1'),
+      kind: item.category || item.kind || 'thing',
+    })),
+    ...legacy.map((item) => {
+      const type = item.kind || 'thing'
+      const fallbackCorrect = item.name || item.relationship || item.description || 'Item'
+      return {
+        id: item.id,
+        patientId,
+        category: type,
+        question: type === 'person' ? 'Who is this?' : type === 'place' ? 'What place is this?' : 'What is this?',
+        options: [fallbackCorrect, 'Another choice', 'Different option', 'One more choice'],
+        correctAnswer: fallbackCorrect,
+        difficulty: normalizeDifficultyLevel(item.difficulty || 'Level 1', 'Level 1'),
+        imageDataUrl: item.imageDataUrl || item.imageAsset || item.imageBlob || '',
+        kind: type,
+        name: fallbackCorrect,
+      }
+    }),
+  ].sort((a, b) => String(a.name || a.question || '').localeCompare(String(b.name || b.question || '')))
 }
 
 export async function listGameScores(userId) {
