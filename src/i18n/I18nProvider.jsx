@@ -1,9 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { LANGS, translate } from './strings'
+import { LANGS, LANGUAGE_REGISTRY, translate } from './strings'
 import { getDeviceLanguage, saveDeviceLanguage, updateUserLanguages } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 
 const I18nContext = createContext(null)
+
+function supportedLanguage(value, fallback = 'en') {
+  return LANGUAGE_REGISTRY[value]?.textSupported ? value : fallback
+}
 
 export function I18nProvider({ children }) {
   const { user } = useAuth()
@@ -16,16 +20,18 @@ export function I18nProvider({ children }) {
     async function load() {
       if (user?.textLang) {
         if (!cancelled) {
-          setTextLangState(user.textLang)
-          setVoiceLangState(user.voiceLang || user.textLang)
+          const nextText = supportedLanguage(user.textLang)
+          setTextLangState(nextText)
+          setVoiceLangState(supportedLanguage(user.voiceLang || nextText, nextText))
           setReady(true)
         }
         return
       }
       const device = await getDeviceLanguage()
       if (!cancelled) {
-        setTextLangState(device.textLang)
-        setVoiceLangState(device.voiceLang)
+        const nextText = supportedLanguage(device.textLang)
+        setTextLangState(nextText)
+        setVoiceLangState(supportedLanguage(device.voiceLang, nextText))
         setReady(true)
       }
     }

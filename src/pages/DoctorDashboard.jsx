@@ -3,43 +3,80 @@ import TopBar from '../components/TopBar'
 import OfflineBanner from '../components/OfflineBanner'
 import Toast from '../components/Toast'
 import { LineChart } from '../components/SimpleChart'
-import { PATIENT, DOCTOR_OVERVIEW, LATENCY_TREND, LEVEL_ORDER } from '../data/mock'
+import { PATIENT, DOCTOR_OVERVIEW, LATENCY_TREND, LEVEL_ORDER, normalizeDifficultyLevel } from '../data/mock'
 import {
   addTelemetry,
   getDifficultyCap,
   getDoctorAuthorized,
   getLinkedPatient,
   listCognitiveSessions,
+  listFamiliarPeople,
+  listFamiliarPlaces,
+  listFamiliarThings,
   saveDifficultyCap,
+  saveFamiliarPerson,
+  saveFamiliarPlace,
+  saveFamiliarThing,
   saveSettings,
+  saveRecognitionItem,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
+import RecognitionContentManager from '../components/RecognitionContentManager'
 
 export default function DoctorDashboard() {
   const { user } = useAuth()
   const { t } = useI18n()
-  const [cap, setCap] = useState('Medium')
+  const [cap, setCap] = useState('Level 1')
   const [toast, setToast] = useState('')
   const [patient, setPatient] = useState(null)
   const [sessions, setSessions] = useState([])
   const [authorized, setAuthorized] = useState(true)
   const [feedback, setFeedback] = useState('feedbackKeep')
+  const [people, setPeople] = useState([])
+  const [places, setPlaces] = useState([])
+  const [things, setThings] = useState([])
+  const [contentForm, setContentForm] = useState(null)
+  const [contentError, setContentError] = useState('')
+
+  function newContentForm(category) {
+    return {
+      category,
+      question: '',
+      option1: '',
+      option2: '',
+      option3: '',
+      option4: '',
+      correctAnswer: '',
+      difficulty: 'Level 1',
+      imageDataUrl: '',
+      imageName: '',
+      imageMime: '',
+      name: '',
+      detail: '',
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       const linked = await getLinkedPatient(user)
       if (cancelled || !linked) return
-      const [history, capLevel, authz] = await Promise.all([
+      const [history, capLevel, authz, familiarPeople, familiarPlaces, familiarThings] = await Promise.all([
         listCognitiveSessions(linked.id),
         getDifficultyCap(linked.id),
         getDoctorAuthorized(linked.id),
+        listFamiliarPeople(linked.id),
+        listFamiliarPlaces(linked.id),
+        listFamiliarThings(linked.id),
       ])
       setPatient(linked)
       setSessions(history)
-      setCap(capLevel)
+      setCap(normalizeDifficultyLevel(capLevel, 'Level 3'))
       setAuthorized(authz)
+      setPeople(familiarPeople)
+      setPlaces(familiarPlaces)
+      setThings(familiarThings)
     }
     load()
     return () => {
@@ -78,6 +115,70 @@ export default function DoctorDashboard() {
     setToast(t('feedbackSaved'))
   }
 
+  async function handleContentSave(event) {
+    event.preventDefault()
+    if (!patient || !contentForm?.question?.trim()) return
+    const imageDataUrl = contentForm.imageDataUrl || ''
+    const options = [contentForm.option1, contentForm.option2, contentForm.option3, contentForm.option4].map((value) => String(value || '').trim()).filter(Boolean)
+    if (!imageDataUrl) {
+      setContentError('Please upload an image before saving.')
+      return
+    }
+    if (options.length !== 4) {
+      setContentError('Please provide exactly four answer options.')
+      return
+    }
+    if (!contentForm.correctAnswer || !options.includes(contentForm.correctAnswer)) {
+      setContentError('Please choose one of the four options as the correct answer.')
+      return
+    }
+    await saveRecognitionItem({
+      patientId: patient.id,
+      category: contentForm.category,
+      kind: contentForm.category,
+      question: contentForm.question.trim(),
+      options,
+      correctAnswer: contentForm.correctAnswer,
+      difficulty: contentForm.difficulty || 'Level 1',
+      name: contentForm.name || contentForm.correctAnswer,
+      relationship: contentForm.detail || contentForm.correctAnswer,
+      description: contentForm.detail || contentForm.question,
+      imageDataUrl,
+      imageName: contentForm.imageName || 'uploaded-image',
+      imageMime: contentForm.imageMime || 'image/png',
+      createdByRole: 'doctor',
+    })
+    const [freshPeople, freshPlaces, freshThings] = await Promise.all([
+      listFamiliarPeople(patient.id),
+      listFamiliarPlaces(patient.id),
+      listFamiliarThings(patient.id),
+    ])
+    setPeople(freshPeople)
+    setPlaces(freshPlaces)
+    setThings(freshThings)
+    setContentForm(null)
+    setContentError('')
+    setToast('Recognition image saved on this device.')
+  }
+
+  async function addImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      setContentError('Please choose an image file only.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setContentError('Image must be smaller than 2 MB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setContentForm((current) => ({ ...current, imageDataUrl: String(reader.result || ''), imageName: file.name, imageMime: file.type }))
+      setContentError('')
+    }
+    reader.onerror = () => { setContentError('Image could not be loaded. Please choose another file.') }
+    reader.readAsDataURL(file)
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-6 pb-28">
       <TopBar showHome={false} showExit />
@@ -106,21 +207,86 @@ export default function DoctorDashboard() {
         <p className="mt-2 text-xl font-bold">{authorized ? t('authorized') : t('notAuthorized')}</p>
       </section>
 
-      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
-        <h2 className="text-xl font-extrabold">Activity breakdown</h2>
-        <p className="mt-1 text-sm font-semibold text-muted">Prototype engagement metrics, not diagnostic results.</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {[
-            ['Memory Match', '82%'],
-            ['Familiar People', '76%'],
-            ['Familiar Places', '88%'],
-            ['Everyday Objects', '91%'],
-            ['Story Recall', '79%'],
-          ].map(([label, value]) => (
-            <div key={label} className="flex items-center justify-between rounded-xl bg-cream px-4 py-3 text-lg font-bold">
-              <span>{label}</span><span className="text-green-dark">{value}</span>
+      <RecognitionContentManager patientId={patient?.id} role="doctor" />
+
+      {contentForm ? (
+        <form onSubmit={handleContentSave} className="mt-4 rounded-3xl border-2 border-blue bg-paper p-5">
+          <h2 className="text-xl font-extrabold">{contentForm.category === 'person' ? 'Add Person Question' : contentForm.category === 'place' ? 'Add Place Question' : 'Add Thing Question'}</h2>
+          <label className="mt-3 block text-lg font-bold">
+            Category
+            <select value={contentForm.category} onChange={(event) => setContentForm((current) => ({ ...current, category: event.target.value }))} className="mt-2 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl">
+              <option value="person">Person</option>
+              <option value="place">Place</option>
+              <option value="thing">Thing</option>
+            </select>
+          </label>
+          <label className="mt-3 block text-lg font-bold text-ink">
+            Upload image
+            <input type="file" accept="image/*" onChange={(event) => addImageFile(event.target.files?.[0])} className="mt-2 block w-full rounded-2xl border-2 border-dashed border-line bg-cream p-3 text-base" />
+          </label>
+          {contentForm.imageDataUrl ? (
+            <div className="mt-3 rounded-2xl border border-line bg-cream p-3">
+              <img src={contentForm.imageDataUrl} alt="Preview" className="mx-auto h-36 w-full rounded-xl object-contain" />
             </div>
-          ))}
+          ) : null}
+          <input
+            required
+            value={contentForm.question}
+            onChange={(event) => setContentForm((current) => ({ ...current, question: event.target.value }))}
+            placeholder="What place is this?"
+            className="mt-3 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl"
+          />
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <input value={contentForm.option1} onChange={(event) => setContentForm((current) => ({ ...current, option1: event.target.value }))} placeholder="Answer option 1" className="min-h-14 rounded-2xl border-2 border-line bg-cream px-4 text-xl" />
+            <input value={contentForm.option2} onChange={(event) => setContentForm((current) => ({ ...current, option2: event.target.value }))} placeholder="Answer option 2" className="min-h-14 rounded-2xl border-2 border-line bg-cream px-4 text-xl" />
+            <input value={contentForm.option3} onChange={(event) => setContentForm((current) => ({ ...current, option3: event.target.value }))} placeholder="Answer option 3" className="min-h-14 rounded-2xl border-2 border-line bg-cream px-4 text-xl" />
+            <input value={contentForm.option4} onChange={(event) => setContentForm((current) => ({ ...current, option4: event.target.value }))} placeholder="Answer option 4" className="min-h-14 rounded-2xl border-2 border-line bg-cream px-4 text-xl" />
+          </div>
+          <label className="mt-3 block text-lg font-bold">
+            Correct answer
+            <select value={contentForm.correctAnswer} onChange={(event) => setContentForm((current) => ({ ...current, correctAnswer: event.target.value }))} className="mt-2 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl">
+              <option value="">Select correct answer</option>
+              {['option1', 'option2', 'option3', 'option4'].map((key, index) => (
+                <option key={key} value={contentForm[key]}>{`Option ${index + 1}: ${contentForm[key] || `Option ${index + 1}`}`}</option>
+              ))}
+            </select>
+          </label>
+          <label className="mt-3 block text-lg font-bold">
+            Difficulty level
+            <select value={contentForm.difficulty || 'Level 1'} onChange={(event) => setContentForm((current) => ({ ...current, difficulty: event.target.value }))} className="mt-2 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl">
+              {[1,2,3,4,5].map((level) => <option key={level} value={`Level ${level}`}>{`Level ${level}`}</option>)}
+            </select>
+          </label>
+          <label className="mt-3 block text-lg font-bold">
+            Patient association
+            <input value={patient?.fullName || 'Current patient'} readOnly className="mt-2 min-h-14 w-full rounded-2xl border-2 border-line bg-cream px-4 text-xl" />
+          </label>
+          {contentError ? <p className="mt-2 text-base font-bold text-orange-dark">{contentError}</p> : null}
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button type="submit" className="min-h-14 rounded-2xl bg-green text-lg font-extrabold text-white">Save</button>
+            <button type="button" onClick={() => { setContentForm(null); setContentError('') }} className="min-h-14 rounded-2xl border-2 border-line text-lg font-extrabold">Cancel</button>
+          </div>
+        </form>
+      ) : null}
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Recognition Library</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-cream p-4">
+            <p className="text-lg font-extrabold">People</p>
+            <p className="mt-1 text-muted">{people.length} saved</p>
+            <button type="button" onClick={() => setContentForm(newContentForm('person'))} className="mt-3 min-h-12 rounded-xl bg-green px-4 text-base font-extrabold text-white">Add Person</button>
+          </div>
+          <div className="rounded-2xl bg-cream p-4">
+            <p className="text-lg font-extrabold">Places</p>
+            <p className="mt-1 text-muted">{places.length} saved</p>
+            <button type="button" onClick={() => setContentForm(newContentForm('place'))} className="mt-3 min-h-12 rounded-xl bg-blue px-4 text-base font-extrabold text-white">Add Place</button>
+          </div>
+          <div className="rounded-2xl bg-cream p-4">
+            <p className="text-lg font-extrabold">Things</p>
+            <p className="mt-1 text-muted">{things.length} saved</p>
+            <button type="button" onClick={() => setContentForm(newContentForm('thing'))} className="mt-3 min-h-12 rounded-xl bg-orange px-4 text-base font-extrabold text-white">Add Thing</button>
+          </div>
         </div>
       </section>
 

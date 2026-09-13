@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
-import { DEFAULT_ROUTINE } from '../data/mock'
-import { getLinkedPatient, getRoutine, saveActivitySession, saveRoutine } from '../db/repo'
+import { DEFAULT_ROUTINE, normalizeDifficultyLevel, routineChecklistForLevel } from '../data/mock'
+import { getCurrentDifficulty, getLinkedPatient, getRoutine, saveActivitySession, saveRoutine } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
 
 export default function DailyRoutine() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { t, tVoice, voiceLang } = useI18n()
   const [patientId, setPatientId] = useState(user?.id)
+  const [level, setLevel] = useState('Level 1')
   const [items, setItems] = useState(DEFAULT_ROUTINE)
   const done = items.filter((i) => i.done).length
 
@@ -18,10 +21,12 @@ export default function DailyRoutine() {
     async function load() {
       const patient = await getLinkedPatient(user)
       const userId = patient?.id || user.id
+      const currentLevel = normalizeDifficultyLevel(await getCurrentDifficulty(userId), 'Level 1')
       const routine = await getRoutine(userId)
       if (cancelled) return
       setPatientId(userId)
-      setItems(routine)
+      setLevel(currentLevel)
+      setItems(routine && routine.length ? routine : routineChecklistForLevel(currentLevel))
     }
     load()
     voiceEngine.speak(tVoice('voiceRoutine'), voiceLang)
@@ -29,6 +34,12 @@ export default function DailyRoutine() {
       cancelled = true
     }
   }, [user, tVoice, voiceLang])
+
+  useEffect(() => {
+    if (!patientId) return
+    setItems(routineChecklistForLevel(level))
+    saveRoutine(patientId, routineChecklistForLevel(level)).catch(() => {})
+  }, [level, patientId])
 
   async function toggle(id) {
     const next = items.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
@@ -42,16 +53,23 @@ export default function DailyRoutine() {
         score: next.length * 10,
         accuracy: 100,
         reactionLatency: 0,
-        difficulty: 'Easy',
-        details: { items: next },
+        difficulty: level,
+        details: { items: next, level },
       })
     }
+  }
+
+  async function retry() {
+    const next = routineChecklistForLevel(level)
+    setItems(next)
+    await saveRoutine(patientId, next)
   }
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-6 pb-28">
       <TopBar backTo="/patient" backLabel={t('dashboard')} />
       <h1 className="text-3xl font-extrabold">{t('dailyRoutine')}</h1>
+      <p className="mt-2 text-base font-extrabold text-blue-dark">{t('difficultyLabel')}: {t(level.toLowerCase().replace(' ', ''))}</p>
       <p className="mt-2 text-xl font-bold text-muted">{t('doneOf', { done, total: items.length })}</p>
       <ul className="mt-5 space-y-3">
         {items.map((item) => (
@@ -71,6 +89,16 @@ export default function DailyRoutine() {
           </li>
         ))}
       </ul>
+      {done === items.length && items.length > 0 ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={retry} className="min-h-14 rounded-2xl bg-orange text-xl font-extrabold text-white">
+            {t('playAgain')}
+          </button>
+          <button type="button" onClick={() => navigate('/patient')} className="min-h-14 rounded-2xl border-2 border-line text-xl font-extrabold">
+            {t('backDashboard')}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

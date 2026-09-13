@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
-import { LEVEL_ORDER, pairsForDifficulty } from '../data/mock'
+import { LEVEL_ORDER, levelNumber, normalizeDifficultyLevel, pairsForDifficulty } from '../data/mock'
 import {
   getCurrentDifficulty,
   getDifficultyCap,
@@ -33,12 +33,11 @@ function makeDeck(level) {
 }
 
 function adapt(current, accuracy, cap) {
-  const capIdx = LEVEL_ORDER.indexOf(cap)
-  let idx = LEVEL_ORDER.indexOf(current)
-  if (idx < 0) idx = 1
+  const capIdx = Math.max(0, Math.min(LEVEL_ORDER.length - 1, levelNumber(cap) - 1))
+  let idx = Math.max(0, Math.min(LEVEL_ORDER.length - 1, levelNumber(current) - 1))
   if (accuracy >= 80 && idx < capIdx) idx += 1
   else if (accuracy < 50 && idx > 0) idx -= 1
-  return LEVEL_ORDER[Math.min(idx, capIdx)]
+  return LEVEL_ORDER[Math.max(0, Math.min(idx, capIdx))]
 }
 
 export default function MemoryGame() {
@@ -46,8 +45,8 @@ export default function MemoryGame() {
   const { user } = useAuth()
   const { t, tVoice, voiceLang } = useI18n()
   const [patientId, setPatientId] = useState(user?.id)
-  const [difficulty, setDifficulty] = useState('Medium')
-  const [cap, setCap] = useState('Medium')
+  const [difficulty, setDifficulty] = useState('Level 1')
+  const [cap, setCap] = useState('Level 5')
   const [deck, setDeck] = useState([])
   const [pairCount, setPairCount] = useState(3)
   const [open, setOpen] = useState([])
@@ -67,10 +66,12 @@ export default function MemoryGame() {
       const userId = patient?.id || user.id
       const [current, capLevel] = await Promise.all([getCurrentDifficulty(userId), getDifficultyCap(userId)])
       if (cancelled) return
+      const nextDifficulty = normalizeDifficultyLevel(current, 'Level 1')
+      const nextCap = normalizeDifficultyLevel(capLevel, 'Level 5')
       setPatientId(userId)
-      setDifficulty(current)
-      setCap(capLevel)
-      const made = makeDeck(current)
+      setDifficulty(nextDifficulty)
+      setCap(nextCap)
+      const made = makeDeck(nextDifficulty)
       setDeck(made.deck)
       setPairCount(made.pairCount)
     }
@@ -81,7 +82,9 @@ export default function MemoryGame() {
   }, [user])
 
   useEffect(() => {
-    const result = voiceEngine.speak(tVoice('voiceGame'), voiceLang)
+    const result = voiceEngine.speak(tVoice('voiceGame'), voiceLang, {
+      onError: () => setVoiceNote(t('voiceUnavailable', { lang: LANGS.find((l) => l.id === voiceLang)?.native || voiceLang })),
+    })
     if (result.fallback) {
       const requested = LANGS.find((l) => l.id === voiceLang)?.native || voiceLang
       setVoiceNote(t('voiceUnavailable', { lang: requested }))
@@ -152,7 +155,7 @@ export default function MemoryGame() {
       <h1 className="text-3xl font-extrabold">{t('memoryMatch')}</h1>
       <p className="mt-1 text-lg text-muted">{t('gameIntro')}</p>
       <p className="mt-2 text-base font-bold text-blue-dark">
-        {t('difficulty')}: {difficulty} · {t('currentCap')}: {cap}
+        {t('difficulty')}: {t(difficulty.toLowerCase().replace(' ', ''))} · {t('currentCap')}: {t(cap.toLowerCase().replace(' ', ''))}
       </p>
       {voiceNote ? <p className="mt-2 text-base font-bold text-orange-dark">{voiceNote}</p> : null}
 
@@ -175,7 +178,7 @@ export default function MemoryGame() {
             <button
               key={card.uid}
               type="button"
-              aria-label={isOpen ? card.label : 'Hidden card'}
+              aria-label={isOpen ? card.label : t('hiddenCard')}
               onClick={() => flip(card)}
               className={`flex aspect-square min-h-[88px] items-center justify-center rounded-3xl border-4 text-5xl sm:text-6xl ${
                 matched.includes(card.pairId)
