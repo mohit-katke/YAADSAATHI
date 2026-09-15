@@ -8,8 +8,11 @@ const DEVICE_SETTINGS_ID = 'settings_device'
 
 export async function ensureSeeded() {
   if (import.meta.env.DEV) {
-    const existingDemo = await db.users.get(DEMO_IDS.patient)
-    if (!existingDemo) await seedDevelopmentDemoData()
+    const demoUsers = await db.users.where('id').anyOf(Object.values(DEMO_IDS)).toArray()
+    if (demoUsers.length < Object.values(DEMO_IDS).length) {
+      await db.users.bulkDelete(Object.values(DEMO_IDS))
+      await seedDevelopmentDemoData()
+    }
     return
   }
 
