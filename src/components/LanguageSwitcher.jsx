@@ -3,7 +3,7 @@ import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
 
 export default function LanguageSwitcher() {
-  const { t, tVoice, textLang, voiceLang, setTextLang, setVoiceLang, swapPreferred, langs } = useI18n()
+  const { t, tVoice, textLang, voiceLang, voiceEnabled, setTextLang, setVoiceLang, setVoiceEnabled, swapPreferred, langs } = useI18n()
   const [open, setOpen] = useState(false)
   const [voiceReady, setVoiceReady] = useState(() => voiceEngine.isVoiceAvailable(voiceLang))
   const [voiceNote, setVoiceNote] = useState('')
@@ -14,6 +14,7 @@ export default function LanguageSwitcher() {
   }, [voiceLang])
 
   function testVoice() {
+    if (!voiceEnabled) return
     const result = voiceEngine.speak(tVoice('voiceTest'), voiceLang)
     setVoiceNote(result.fallback ? t('voiceUnavailableFriendly') : t('voiceTestStarted'))
   }
@@ -51,7 +52,15 @@ export default function LanguageSwitcher() {
           <p className="mt-2 text-sm font-semibold text-muted">
             {voiceReady ? t('voiceAvailable') : t('voiceUnavailableFriendly')}
           </p>
-          <button type="button" onClick={testVoice} className="mt-2 min-h-12 w-full rounded-xl bg-blue text-base font-extrabold text-white">
+          <button
+            type="button"
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            className={`mt-3 min-h-12 w-full rounded-xl text-base font-extrabold text-white ${voiceEnabled ? 'bg-green' : 'bg-ink'}`}
+            aria-pressed={voiceEnabled}
+          >
+            Voice Assistant: {voiceEnabled ? 'On' : 'Off'}
+          </button>
+          <button type="button" onClick={testVoice} disabled={!voiceEnabled} className="mt-2 min-h-12 w-full rounded-xl bg-blue text-base font-extrabold text-white disabled:opacity-50">
             {t('testVoice')}
           </button>
           {voiceNote ? <p className="mt-2 text-sm font-bold text-muted">{voiceNote}</p> : null}

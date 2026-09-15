@@ -163,20 +163,18 @@ export async function getDeviceLanguage() {
   return {
     textLang: row?.textLang || 'en',
     voiceLang: row?.voiceLang || 'en',
+    voiceEnabled: row?.voiceEnabled !== false,
   }
 }
 
-export async function saveDeviceLanguage(textLang, voiceLang) {
+export async function saveDeviceLanguage(textLang, voiceLang, voiceEnabled = true) {
   const current = (await db.settings.get(DEVICE_SETTINGS_ID)) || {
     id: DEVICE_SETTINGS_ID,
     userId: 'device',
     createdAt: Date.now(),
   }
-  if (user.role === 'patient') {
-    await createRelationship({ patientId: user.id, caregiverId: String(profile.caregiverId).trim(), role: 'caregiver' })
-  }
 
-  await db.settings.put({ ...current, textLang, voiceLang, updatedAt: Date.now() })
+  await db.settings.put({ ...current, textLang, voiceLang, voiceEnabled, updatedAt: Date.now() })
 }
 
 export async function updateUserLanguages(userId, textLang, voiceLang) {

@@ -13,25 +13,28 @@ export function I18nProvider({ children }) {
   const { user } = useAuth()
   const [textLang, setTextLangState] = useState('en')
   const [voiceLang, setVoiceLangState] = useState('en')
+  const [voiceEnabled, setVoiceEnabledState] = useState(true)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     async function load() {
+      const device = await getDeviceLanguage()
       if (user?.textLang) {
         if (!cancelled) {
           const nextText = supportedLanguage(user.textLang)
           setTextLangState(nextText)
           setVoiceLangState(supportedLanguage(user.voiceLang || nextText, nextText))
+          setVoiceEnabledState(device.voiceEnabled !== false)
           setReady(true)
         }
         return
       }
-      const device = await getDeviceLanguage()
       if (!cancelled) {
         const nextText = supportedLanguage(device.textLang)
         setTextLangState(nextText)
         setVoiceLangState(supportedLanguage(device.voiceLang, nextText))
+        setVoiceEnabledState(device.voiceEnabled !== false)
         setReady(true)
       }
     }
@@ -43,10 +46,10 @@ export function I18nProvider({ children }) {
 
   const persist = useCallback(
     async (nextText, nextVoice) => {
-      await saveDeviceLanguage(nextText, nextVoice)
+      await saveDeviceLanguage(nextText, nextVoice, voiceEnabled)
       if (user?.id) await updateUserLanguages(user.id, nextText, nextVoice)
     },
-    [user],
+    [user, voiceEnabled],
   )
 
   const setTextLang = useCallback(
@@ -65,6 +68,14 @@ export function I18nProvider({ children }) {
     [persist, textLang],
   )
 
+  const setVoiceEnabled = useCallback(
+    (enabled) => {
+      setVoiceEnabledState(Boolean(enabled))
+      saveDeviceLanguage(textLang, voiceLang, Boolean(enabled))
+    },
+    [textLang, voiceLang],
+  )
+
   const swapPreferred = useCallback(() => {
     if (textLang === voiceLang) return
     setTextLangState(voiceLang)
@@ -77,14 +88,16 @@ export function I18nProvider({ children }) {
       ready,
       textLang,
       voiceLang,
+      voiceEnabled,
       setTextLang,
       setVoiceLang,
+      setVoiceEnabled,
       swapPreferred,
       langs: LANGS,
       t: (key, vars) => translate(textLang, key, vars),
       tVoice: (key, vars) => translate(voiceLang, key, vars),
     }),
-    [ready, setTextLang, setVoiceLang, swapPreferred, textLang, voiceLang],
+    [ready, setTextLang, setVoiceLang, setVoiceEnabled, swapPreferred, textLang, voiceEnabled, voiceLang],
   )
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

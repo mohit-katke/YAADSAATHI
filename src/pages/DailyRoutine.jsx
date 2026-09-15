@@ -10,7 +10,7 @@ import { voiceEngine } from '../voice/speech'
 export default function DailyRoutine() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { t, tVoice, voiceLang } = useI18n()
+  const { t, tVoice, voiceLang, voiceEnabled } = useI18n()
   const [patientId, setPatientId] = useState(user?.id)
   const [level, setLevel] = useState('Level 1')
   const [items, setItems] = useState([])
@@ -29,11 +29,11 @@ export default function DailyRoutine() {
       setItems(tasks)
     }
     load()
-    voiceEngine.speak(tVoice('voiceRoutine'), voiceLang)
+    if (voiceEnabled) voiceEngine.speak(tVoice('voiceRoutine'), voiceLang)
     return () => {
       cancelled = true
     }
-  }, [user, tVoice, voiceLang])
+  }, [user, tVoice, voiceLang, voiceEnabled])
 
   useEffect(() => {
   }, [level, patientId])
