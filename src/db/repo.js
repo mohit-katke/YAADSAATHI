@@ -204,7 +204,10 @@ export async function getReminders(userId) {
 }
 
 export async function saveReminder(reminder) {
-  await db.reminders.put(reminder)
+  const updated = { ...reminder, updatedAt: Date.now() }
+  await db.reminders.put(updated)
+  await enqueueSync({ kind: 'reminder', payload: updated })
+  return updated
 }
 
 export async function addReminder(userId, payload) {
@@ -214,9 +217,18 @@ export async function addReminder(userId, payload) {
     time: payload.time,
     text: payload.text,
     done: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
   }
   await db.reminders.add(item)
+  await enqueueSync({ kind: 'reminder', payload: item })
   return item
+}
+
+export async function completeReminder(id, userId, done) {
+  const reminder = await db.reminders.get(id)
+  if (!reminder || reminder.userId !== userId) return null
+  return saveReminder({ ...reminder, done: Boolean(done) })
 }
 
 export async function getRoutine(userId) {

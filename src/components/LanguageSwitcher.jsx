@@ -101,15 +101,29 @@ export default function LanguageSwitcher() {
         </div>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex min-h-14 min-w-14 items-center gap-2 rounded-2xl bg-green px-4 text-lg font-extrabold text-white shadow-lg"
-        aria-expanded={open}
-      >
-        文A
-        <span>{t('langButton')}</span>
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (voiceEnabled) window.speechSynthesis?.cancel()
+            setVoiceEnabled(!voiceEnabled)
+          }}
+          className={`min-h-14 rounded-2xl px-3 text-base font-extrabold text-white shadow-lg ${voiceEnabled ? 'bg-green' : 'bg-ink'}`}
+          aria-pressed={voiceEnabled}
+          aria-label={`Voice Assistant ${voiceEnabled ? 'On' : 'Off'}`}
+        >
+          Voice: {voiceEnabled ? 'On' : 'Off'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex min-h-14 min-w-14 items-center gap-2 rounded-2xl bg-green px-4 text-lg font-extrabold text-white shadow-lg"
+          aria-expanded={open}
+        >
+          文A
+          <span>{t('langButton')}</span>
+        </button>
+      </div>
     </div>
   )
 }

@@ -24,6 +24,7 @@ import {
   addDailyTask,
   listDailyTasks,
   completeDailyTask,
+  completeReminder,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
@@ -263,6 +264,23 @@ export default function CaregiverDashboard() {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">{t('reminders')}</h2>
+        <div className="mt-3 space-y-2">
+          {reminders.length ? reminders.map((item) => (
+            <label key={item.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
+              <input
+                type="checkbox"
+                checked={Boolean(item.done)}
+                onChange={async (event) => { await completeReminder(item.id, patientId, event.target.checked); await reload(patientId) }}
+                className="h-6 w-6"
+              />
+              <span className={item.done ? 'text-muted line-through' : ''}>{item.text} · {item.time}</span>
+            </label>
+          )) : <p className="text-muted">No reminders yet.</p>}
         </div>
       </section>
 

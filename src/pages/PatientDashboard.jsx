@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
 import OfflineBanner from '../components/OfflineBanner'
-import { getLinkedPatient, listGameScores, getReminders, listRelationshipsForUser } from '../db/repo'
+import { completeReminder, getLinkedPatient, listGameScores, getReminders, listRelationshipsForUser } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
@@ -15,6 +15,11 @@ export default function PatientDashboard() {
   const [reminders, setReminders] = useState([])
   const [scores, setScores] = useState([])
   const [relationships, setRelationships] = useState([])
+
+  async function toggleReminder(item, done) {
+    const updated = await completeReminder(item.id, patient?.id || user.id, done)
+    if (updated) setReminders((current) => current.map((row) => (row.id === updated.id ? updated : row)))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -118,6 +123,13 @@ export default function PatientDashboard() {
         <ul className="mt-3 space-y-3">
           {reminders.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3">
+              <input
+                type="checkbox"
+                checked={Boolean(item.done)}
+                onChange={(event) => toggleReminder(item, event.target.checked)}
+                className="h-6 w-6 shrink-0"
+                aria-label={`Mark ${item.text} ${item.done ? 'not done' : 'done'}`}
+              />
               <div>
                 <p className="text-lg font-extrabold">{item.text}</p>
                 <p className="text-base text-muted">{item.time}</p>
