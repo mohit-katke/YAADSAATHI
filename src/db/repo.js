@@ -8,15 +8,30 @@ const DEVICE_SETTINGS_ID = 'settings_device'
 
 export async function ensureSeeded() {
   // Remove records from older prototype installations. New installations stay empty.
-  const demoIds = Object.values(DEMO_IDS)
+  const legacyUsers = await db.users
+    .filter((user) => (
+      Object.values(DEMO_IDS).includes(user.id) ||
+      ['Mina Devi', 'Rina Devi', 'Dr. A. Sharma'].includes(user.fullName)
+    ))
+    .toArray()
+  const demoIds = [...new Set([...Object.values(DEMO_IDS), ...legacyUsers.map((user) => user.id)])]
+  const legacyPatientIds = legacyUsers.filter((user) => user.role === 'patient').map((user) => user.id)
   await db.users.bulkDelete(demoIds)
   for (const table of [db.sessions, db.gameScores, db.telemetry, db.reminders, db.settings]) {
     await table.where('userId').anyOf(demoIds).delete()
   }
   for (const table of [db.familiarPeople, db.familiarPlaces, db.familiarThings, db.recognitionItems, db.dailyTasks]) {
-    await table.where('patientId').equals(DEMO_IDS.patient).delete()
+    for (const patientId of [...new Set([DEMO_IDS.patient, ...legacyPatientIds])]) {
+      await table.where('patientId').equals(patientId).delete()
+    }
   }
-  await db.relationships.where('patientId').equals(DEMO_IDS.patient).delete()
+  for (const patientId of [...new Set([DEMO_IDS.patient, ...legacyPatientIds])]) {
+    await db.relationships.where('patientId').equals(patientId).delete()
+  }
+  await db.relationships.where('caregiverId').anyOf(demoIds).delete()
+  await db.relationships.where('doctorId').anyOf(demoIds).delete()
+  const auth = await db.sessions.get(AUTH_SESSION_ID)
+  if (auth && demoIds.includes(auth.userId)) await db.sessions.delete(AUTH_SESSION_ID)
 }
 
 export async function findUserByEmailOrMobile(identifier) {
