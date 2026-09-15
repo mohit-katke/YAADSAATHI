@@ -7,6 +7,12 @@ const AUTH_SESSION_ID = 'auth_current'
 const DEVICE_SETTINGS_ID = 'settings_device'
 
 export async function ensureSeeded() {
+  if (import.meta.env.DEV) {
+    const existingDemo = await db.users.get(DEMO_IDS.patient)
+    if (!existingDemo) await seedDevelopmentDemoData()
+    return
+  }
+
   // Remove records from older prototype installations. New installations stay empty.
   const legacyUsers = await db.users
     .filter((user) => (
@@ -32,6 +38,107 @@ export async function ensureSeeded() {
   await db.relationships.where('doctorId').anyOf(demoIds).delete()
   const auth = await db.sessions.get(AUTH_SESSION_ID)
   if (auth && demoIds.includes(auth.userId)) await db.sessions.delete(AUTH_SESSION_ID)
+}
+
+async function seedDevelopmentDemoData() {
+  const now = Date.now()
+  const [patientHash, caregiverHash, doctorHash] = await Promise.all([
+    hashPassword('Patient12'),
+    hashPassword('Caregiver1'),
+    hashPassword('Doctor123'),
+  ])
+
+  await db.users.bulkAdd([
+    {
+      id: DEMO_IDS.patient,
+      fullName: 'Mina Devi',
+      age: 72,
+      mobile: '9876543210',
+      email: 'mina@yaadsaathi.app',
+      location: 'Guwahati, Assam',
+      role: 'patient',
+      passwordHash: patientHash,
+      textLang: 'en',
+      voiceLang: 'as',
+      createdAt: now,
+    },
+    {
+      id: DEMO_IDS.caregiver,
+      fullName: 'Rina Devi',
+      age: 46,
+      mobile: '9876543211',
+      email: 'rina@yaadsaathi.app',
+      location: 'Guwahati, Assam',
+      role: 'caregiver',
+      passwordHash: caregiverHash,
+      textLang: 'hi',
+      voiceLang: 'as',
+      relationship: 'Daughter',
+      linkedPatientId: DEMO_IDS.patient,
+      createdAt: now,
+    },
+    {
+      id: DEMO_IDS.doctor,
+      fullName: 'Dr. A. Sharma',
+      age: 54,
+      mobile: '9876543212',
+      email: 'doctor@yaadsaathi.app',
+      location: 'Guwahati, Assam',
+      role: 'doctor',
+      passwordHash: doctorHash,
+      textLang: 'en',
+      voiceLang: 'hi',
+      specialization: 'Geriatric neurology',
+      linkedPatientId: DEMO_IDS.patient,
+      createdAt: now,
+    },
+  ])
+
+  await db.settings.put({
+    id: `settings_${DEMO_IDS.patient}`,
+    userId: DEMO_IDS.patient,
+    difficultyCap: 'Level 3',
+    currentDifficulty: 'Level 3',
+    doctorAuthorized: true,
+    routine: [],
+    createdAt: now,
+  })
+  await db.reminders.bulkAdd([
+    { id: 'demo_reminder_medicine', userId: DEMO_IDS.patient, time: '08:00 AM', text: 'Morning medicine', done: false, createdAt: now },
+    { id: 'demo_reminder_walk', userId: DEMO_IDS.patient, time: '06:00 PM', text: 'Evening walk', done: true, createdAt: now },
+  ])
+  await db.relationships.bulkAdd([
+    { id: `${DEMO_IDS.caregiver}_${DEMO_IDS.patient}`, patientId: DEMO_IDS.patient, caregiverId: DEMO_IDS.caregiver, doctorId: null, role: 'caregiver', status: 'accepted', createdAt: now },
+    { id: `${DEMO_IDS.doctor}_${DEMO_IDS.patient}`, patientId: DEMO_IDS.patient, caregiverId: null, doctorId: DEMO_IDS.doctor, role: 'doctor', status: 'accepted', createdAt: now },
+  ])
+  await db.sessions.bulkAdd([
+    {
+      id: 'demo_session_memory_1',
+      userId: DEMO_IDS.patient,
+      type: 'cognitive',
+      game: 'Memory Match',
+      gameType: 'memory-match',
+      dateLabel: 'Today',
+      accuracy: 86,
+      avgReactionMs: 740,
+      difficulty: 'Level 2',
+      score: 26,
+      createdAt: now - 86400000,
+    },
+    {
+      id: 'demo_session_story_1',
+      userId: DEMO_IDS.patient,
+      type: 'cognitive',
+      game: 'Story Recall',
+      gameType: 'story-recall',
+      dateLabel: 'Yesterday',
+      accuracy: 75,
+      avgReactionMs: 910,
+      difficulty: 'Level 2',
+      score: 23,
+      createdAt: now - 2 * 86400000,
+    },
+  ])
 }
 
 export async function findUserByEmailOrMobile(identifier) {
