@@ -3,11 +3,10 @@ import TopBar from '../components/TopBar'
 import OfflineBanner from '../components/OfflineBanner'
 import Toast from '../components/Toast'
 import { BarChart } from '../components/SimpleChart'
-import { PATIENT, CAREGIVER_STATS, ACTIVITY_TREND } from '../data/mock'
 import {
   addReminder,
   getDoctorAuthorized,
-  getLinkedPatient,
+  getAuthorizedPatient,
   getReminders,
   listCognitiveSessions,
   listFamiliarPeople,
@@ -19,6 +18,12 @@ import {
   saveFamiliarPlace,
   saveFamiliarThing,
   saveRecognitionItem,
+  listPendingRelationships,
+  updateRelationshipStatus,
+  getUser,
+  addDailyTask,
+  listDailyTasks,
+  completeDailyTask,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
@@ -42,6 +47,9 @@ export default function CaregiverDashboard() {
   const [familiarForm, setFamiliarForm] = useState(null)
   const [imageError, setImageError] = useState('')
   const [recognitionForm, setRecognitionForm] = useState(null)
+  const [requests, setRequests] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [taskTitle, setTaskTitle] = useState('')
 
   async function reload(userId) {
     const [rems, games, history, authz, familiarPeople, familiarPlaces, familiarThings] = await Promise.all([
@@ -60,12 +68,15 @@ export default function CaregiverDashboard() {
     setPeople(familiarPeople)
     setPlaces(familiarPlaces)
     setThings(familiarThings)
+    setTasks(await listDailyTasks(userId, new Date().toISOString().slice(0, 10)))
   }
 
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const linked = await getLinkedPatient(user)
+      const pending = await listPendingRelationships(user)
+      setRequests(await Promise.all(pending.map(async (request) => ({ ...request, patient: await getUser(request.patientId) }))))
+      const linked = await getAuthorizedPatient(user)
       if (cancelled || !linked) return
       setPatient(linked)
       await reload(linked.id)
@@ -78,17 +89,16 @@ export default function CaregiverDashboard() {
 
   const patientId = patient?.id
   const latest = scores[0]
-  const avgReaction =
-    sessions.length > 0
-      ? Math.round(sessions.reduce((sum, row) => sum + (row.avgReactionMs || 0), 0) / sessions.length)
-      : CAREGIVER_STATS.avgReactionMs
+  const avgReaction = sessions.length > 0
+    ? Math.round(sessions.reduce((sum, row) => sum + (row.avgReactionMs || 0), 0) / sessions.length)
+    : 0
   const trend =
     sessions.length > 0
       ? sessions
           .slice(0, 7)
           .reverse()
           .map((row) => ({ day: row.dateLabel || 'Day', value: row.score || 1 }))
-      : ACTIVITY_TREND
+      : []
 
   async function addReminderForm(event) {
     event.preventDefault()
@@ -97,6 +107,15 @@ export default function CaregiverDashboard() {
     await reload(patientId)
     setOpen(false)
     setToast(t('reminderSaved'))
+  }
+
+  async function addTaskForm(event) {
+    event.preventDefault()
+    if (!patientId || !taskTitle.trim()) return
+    await addDailyTask(patientId, user.id, { title: taskTitle, createdByRole: 'caregiver' })
+    setTaskTitle('')
+    await reload(patientId)
+    setToast('Daily task saved.')
   }
 
   async function saveFamiliar(event) {
@@ -170,7 +189,7 @@ export default function CaregiverDashboard() {
   }
 
   async function shareReport() {
-    const report = `YaadSaathi activity report for ${patient?.fullName || PATIENT.name}\nSessions: ${sessions.length}\nAverage reaction: ${avgReaction} ms`
+    const report = `YaadSaathi activity report for ${patient?.fullName || 'patient'}\nSessions: ${sessions.length}\nAverage reaction: ${avgReaction || 'No data'} ms`
     if (navigator.share) {
       await navigator.share({ title: 'YaadSaathi activity report', text: report })
     } else if (navigator.clipboard) {
@@ -185,23 +204,41 @@ export default function CaregiverDashboard() {
     <div className="mx-auto max-w-4xl px-5 py-6 pb-28">
       <TopBar showHome={false} showExit />
       <h1 className="text-3xl font-extrabold">{t('caregiver')}</h1>
-      <p className="mt-1 text-xl text-muted">{t('lookingAfter', { name: patient?.fullName || PATIENT.name })}</p>
+      <p className="mt-1 text-xl text-muted">Welcome, {user?.fullName || t('caregiver')}</p>
+      <p className="mt-1 text-base font-semibold text-muted">Caregiver ID: {user?.id || 'Unavailable'}</p>
       <div className="mt-4">
         <OfflineBanner />
       </div>
 
       <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('patient')}</h2>
-        <p className="mt-2 text-2xl font-extrabold">{patient?.fullName || PATIENT.name}</p>
+        <p className="mt-2 text-2xl font-extrabold">{patient?.fullName || 'No connected patient yet'}</p>
         <p className="text-lg text-muted">
-          {patient?.age || PATIENT.age} · {patient?.location || PATIENT.place}
+          {patient ? `${patient.age} · ${patient.location}` : 'Accept a connection request to view patient data.'}
         </p>
       </section>
 
+      {requests.length ? (
+        <section className="mt-4 rounded-3xl border-2 border-orange bg-paper p-5">
+          <h2 className="text-xl font-extrabold">Patient Connection Requests</h2>
+          <div className="mt-3 space-y-3">
+            {requests.map((request) => (
+              <div key={request.id} className="rounded-2xl bg-cream p-4">
+                <p className="text-lg font-bold">{request.patient?.fullName || 'Patient'} wants to connect with you as their caregiver.</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); setRequests((current) => current.filter((item) => item.id !== request.id)); window.location.reload() }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'rejected', user); setRequests((current) => current.filter((item) => item.id !== request.id)) }} className="min-h-12 rounded-xl bg-orange text-base font-extrabold text-white">Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Stat label={t('todaysActivity')} value={CAREGIVER_STATS.activityStatus} />
+        <Stat label={t('todaysActivity')} value={sessions.length ? `${sessions.length} ${t('completed')}` : 'No activity yet'} />
         <Stat label={t('gameSessions')} value={`${Math.max(sessions.length, scores.length)} ${t('completed')}`} />
-        <Stat label={t('avgReaction')} value={`${avgReaction} ms`} />
+        <Stat label={t('avgReaction')} value={avgReaction ? `${avgReaction} ms` : 'No data'} />
         <Stat label={t('reminders')} value={`${reminders.filter((r) => r.done).length} / ${reminders.length}`} />
       </div>
 
@@ -226,6 +263,22 @@ export default function CaregiverDashboard() {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Daily Tasks</h2>
+        <form onSubmit={addTaskForm} className="mt-3 flex gap-2">
+          <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Add a task" className="min-h-12 min-w-0 flex-1 rounded-xl border-2 border-line bg-cream px-3 text-lg" />
+          <button type="submit" className="min-h-12 rounded-xl bg-green px-4 font-extrabold text-white">Add</button>
+        </form>
+        <div className="mt-3 space-y-2">
+          {tasks.length ? tasks.map((task) => (
+            <label key={task.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
+              <input type="checkbox" checked={task.completed} onChange={async (event) => { await completeDailyTask(task.id, patientId, event.target.checked); await reload(patientId) }} className="h-6 w-6" />
+              {task.title}
+            </label>
+          )) : <p className="text-muted">No daily tasks yet.</p>}
         </div>
       </section>
 

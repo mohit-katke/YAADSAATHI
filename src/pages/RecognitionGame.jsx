@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import TopBar from '../components/TopBar'
-import { DEMO_EVERYDAY_OBJECTS, DEMO_FAMILIAR_PEOPLE, DEMO_FAMILIAR_PLACES, getRecognitionFallbackByKind, normalizeDifficultyLevel } from '../data/mock'
+import { normalizeDifficultyLevel } from '../data/mock'
 import { getCurrentDifficulty, getDifficultyCap, getLinkedPatient, listRecognitionItems, saveActivitySession } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
 
 const CONFIG = {
-  people: { gameType: 'familiar-person', titleKey: 'whoIsThis', promptKey: 'whoIsThis', items: DEMO_FAMILIAR_PEOPLE, label: (item) => `${item.name} — ${item.relationship || 'Family member'}` },
-  places: { gameType: 'familiar-place', titleKey: 'familiarPlaces', promptKey: 'familiarPlaces', items: DEMO_FAMILIAR_PLACES, label: (item) => item.name },
-  objects: { gameType: 'everyday-object', titleKey: 'everydayObjects', promptKey: 'everydayObjects', items: DEMO_EVERYDAY_OBJECTS, label: (item) => item.name },
+  people: { gameType: 'familiar-person', titleKey: 'whoIsThis', promptKey: 'whoIsThis' },
+  places: { gameType: 'familiar-place', titleKey: 'familiarPlaces', promptKey: 'familiarPlaces' },
+  objects: { gameType: 'everyday-object', titleKey: 'everydayObjects', promptKey: 'everydayObjects' },
 }
 
 function normalizeQuestionItem(item, kind) {
@@ -50,7 +50,7 @@ export default function RecognitionGame() {
   const config = CONFIG[kind] || CONFIG.people
   const [patientId, setPatientId] = useState(user?.id)
   const [level, setLevel] = useState('Level 1')
-  const [items, setItems] = useState(config.items)
+  const [items, setItems] = useState([])
   const [question, setQuestion] = useState(0)
   const [answers, setAnswers] = useState([])
   const [selected, setSelected] = useState('')
@@ -67,12 +67,11 @@ export default function RecognitionGame() {
     const currentLevel = normalizeDifficultyLevel(await getCurrentDifficulty(nextUserId), 'Level 1')
     const recognitionItems = await listRecognitionItems(nextUserId)
     const byKind = recognitionItems.filter((item) => (item.category || item.kind) === expectedKind)
-    const fallback = getRecognitionFallbackByKind(expectedKind)
     const savedQuestions = byKind.filter((item) => item.createdBy && Array.isArray(item.options) && item.options.length >= 4)
     const questionPool = savedQuestions.length ? savedQuestions : byKind
     const levelQuestions = questionPool.filter((item) => normalizeDifficultyLevel(item.difficulty || 'Level 1', 'Level 1') === currentLevel)
     const nearbyQuestions = questionPool.filter((item) => Math.abs(Number(item.difficulty?.replace(/\D/g, '')) - Number(currentLevel.replace(/\D/g, ''))) <= 1 || normalizeDifficultyLevel(item.difficulty || 'Level 1', 'Level 1') === currentLevel)
-    const sourceItems = levelQuestions.length ? levelQuestions : nearbyQuestions.length ? nearbyQuestions : questionPool.length ? questionPool : fallback
+    const sourceItems = levelQuestions.length ? levelQuestions : nearbyQuestions.length ? nearbyQuestions : questionPool
     const uniqueItems = [...new Map(sourceItems.map((item) => [item.id, item])).values()]
     const nextItems = shuffle(uniqueItems).slice(0, 5)
       .map((item) => normalizeQuestionItem(item, expectedKind))
@@ -80,7 +79,7 @@ export default function RecognitionGame() {
 
     setPatientId(nextUserId)
     setLevel(currentLevel)
-    setItems(nextItems.length ? nextItems : fallback.map((item) => normalizeQuestionItem(item, expectedKind)).filter(Boolean))
+    setItems(nextItems)
     setQuestion(0)
     setAnswers([])
     setSelected('')
@@ -100,7 +99,7 @@ export default function RecognitionGame() {
     }
   }, [kind, user])
 
-  const item = items[question % Math.max(1, items.length)] || config.items[0]
+  const item = items[question % Math.max(1, items.length)]
   const normalizedItem = normalizeQuestionItem(item, kind === 'people' ? 'person' : kind === 'places' ? 'place' : 'thing') || {
     id: 'fallback',
     name: 'Choice',
@@ -177,6 +176,13 @@ export default function RecognitionGame() {
     <div className="mx-auto max-w-3xl px-5 py-6 pb-28">
       <TopBar backTo="/patient" backLabel={t('dashboard')} />
       <h1 className="text-3xl font-extrabold">{t(config.titleKey)}</h1>
+      {!items.length ? (
+        <section className="mt-5 rounded-3xl border border-line bg-paper p-6">
+          <p className="text-lg text-muted">No saved content is available for this activity yet. Ask your caregiver or doctor to add questions.</p>
+        </section>
+      ) : null}
+      {items.length ? (
+        <>
       <p className="mt-2 text-lg text-muted">{normalizedItem.question || t(config.promptKey)}</p>
       <p className="mt-2 text-base font-extrabold text-blue-dark">{t('difficultyLabel')}: {t(level.toLowerCase().replace(' ', ''))}</p>
       {!done ? (
@@ -230,6 +236,8 @@ export default function RecognitionGame() {
           {saved ? <p className="mt-3 text-base font-bold text-muted">{t('savedOnDevice')}</p> : null}
         </section>
       )}
+        </>
+      ) : null}
     </div>
   )
 }

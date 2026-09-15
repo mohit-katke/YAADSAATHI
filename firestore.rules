@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function acceptedCaregiver(patientId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)) &&
+        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.role == "caregiver" &&
+        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.status == "accepted";
+    }
+
+    function acceptedDoctor(patientId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)) &&
+        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.role == "doctor" &&
+        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.status == "accepted";
+    }
+
+    match /users/{uid} {
+      allow create: if ownUser(uid);
+      allow read, update: if ownUser(uid);
+    }
+
+    match /relationships/{relationshipId} {
+      allow create: if signedIn() &&
+        (request.resource.data.caregiverId == request.auth.uid ||
+         request.resource.data.doctorId == request.auth.uid ||
+         request.resource.data.patientId == request.auth.uid);
+      allow read, update: if signedIn() &&
+        (resource.data.caregiverId == request.auth.uid ||
+         resource.data.doctorId == request.auth.uid ||
+         resource.data.patientId == request.auth.uid);
+    }
+
+    match /{collection}/{recordId} {
+      allow read, write: if signedIn() &&
+        (request.resource.data.patientId == request.auth.uid ||
+         resource.data.patientId == request.auth.uid ||
+         acceptedCaregiver(request.resource.data.patientId) ||
+         acceptedCaregiver(resource.data.patientId) ||
+         acceptedDoctor(request.resource.data.patientId) ||
+         acceptedDoctor(resource.data.patientId));
+    }
+  }
+}

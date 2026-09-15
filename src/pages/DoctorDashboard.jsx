@@ -3,12 +3,12 @@ import TopBar from '../components/TopBar'
 import OfflineBanner from '../components/OfflineBanner'
 import Toast from '../components/Toast'
 import { LineChart } from '../components/SimpleChart'
-import { PATIENT, DOCTOR_OVERVIEW, LATENCY_TREND, LEVEL_ORDER, normalizeDifficultyLevel } from '../data/mock'
+import { LEVEL_ORDER, normalizeDifficultyLevel } from '../data/mock'
 import {
   addTelemetry,
   getDifficultyCap,
   getDoctorAuthorized,
-  getLinkedPatient,
+  getAuthorizedPatient,
   listCognitiveSessions,
   listFamiliarPeople,
   listFamiliarPlaces,
@@ -19,6 +19,12 @@ import {
   saveFamiliarThing,
   saveSettings,
   saveRecognitionItem,
+  listPendingRelationships,
+  updateRelationshipStatus,
+  getUser,
+  addDailyTask,
+  listDailyTasks,
+  completeDailyTask,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
@@ -38,6 +44,9 @@ export default function DoctorDashboard() {
   const [things, setThings] = useState([])
   const [contentForm, setContentForm] = useState(null)
   const [contentError, setContentError] = useState('')
+  const [requests, setRequests] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [taskTitle, setTaskTitle] = useState('')
 
   function newContentForm(category) {
     return {
@@ -60,7 +69,9 @@ export default function DoctorDashboard() {
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const linked = await getLinkedPatient(user)
+      const pending = await listPendingRelationships(user)
+      setRequests(await Promise.all(pending.map(async (request) => ({ ...request, patient: await getUser(request.patientId) }))))
+      const linked = await getAuthorizedPatient(user)
       if (cancelled || !linked) return
       const [history, capLevel, authz, familiarPeople, familiarPlaces, familiarThings] = await Promise.all([
         listCognitiveSessions(linked.id),
@@ -77,6 +88,7 @@ export default function DoctorDashboard() {
       setPeople(familiarPeople)
       setPlaces(familiarPlaces)
       setThings(familiarThings)
+      setTasks(await listDailyTasks(linked.id, new Date().toISOString().slice(0, 10)))
     }
     load()
     return () => {
@@ -88,18 +100,18 @@ export default function DoctorDashboard() {
   const avgLatency =
     sessions.length > 0
       ? Math.round(sessions.reduce((sum, row) => sum + (row.avgReactionMs || 0), 0) / sessions.length)
-      : DOCTOR_OVERVIEW.avgLatencyMs
+      : 0
   const avgAccuracy =
     sessions.length > 0
       ? Math.round(sessions.reduce((sum, row) => sum + (row.accuracy || 0), 0) / sessions.length)
-      : DOCTOR_OVERVIEW.accuracy
+      : 0
   const latencyData =
     sessions.length > 0
       ? sessions
           .slice(0, 7)
           .reverse()
           .map((row) => ({ day: row.dateLabel || '', ms: row.avgReactionMs || 0 }))
-      : LATENCY_TREND
+      : []
 
   async function applyCap(level) {
     if (!patient) return
@@ -113,6 +125,15 @@ export default function DoctorDashboard() {
     await saveSettings(patient.id, { doctorFeedback: feedback })
     await addTelemetry({ userId: patient.id, kind: 'doctor_feedback', data: { feedback } })
     setToast(t('feedbackSaved'))
+  }
+
+  async function addTask(event) {
+    event.preventDefault()
+    if (!patient || !taskTitle.trim()) return
+    await addDailyTask(patient.id, user.id, { title: taskTitle, createdByRole: 'doctor' })
+    setTaskTitle('')
+    setTasks(await listDailyTasks(patient.id, new Date().toISOString().slice(0, 10)))
+    setToast('Daily task saved.')
   }
 
   async function handleContentSave(event) {
@@ -183,24 +204,41 @@ export default function DoctorDashboard() {
     <div className="mx-auto max-w-5xl px-5 py-6 pb-28">
       <TopBar showHome={false} showExit />
       <h1 className="text-3xl font-extrabold">{t('doctor')}</h1>
-      <p className="mt-1 text-xl text-muted">{patient?.specialization || user?.specialization || 'Geriatric care'}</p>
+      <p className="mt-1 text-xl text-muted">Welcome, {user?.fullName || t('doctor')}</p>
       <div className="mt-4">
         <OfflineBanner />
       </div>
 
       <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('patientOverview')}</h2>
-        <p className="mt-2 text-2xl font-extrabold">{patient?.fullName || PATIENT.name}</p>
+        <p className="mt-2 text-2xl font-extrabold">{patient?.fullName || 'No connected patient yet'}</p>
         <p className="text-lg text-muted">
-          {patient?.age || PATIENT.age} · {patient?.location || PATIENT.place} · {t('caregiver')}: {PATIENT.caregiver}
+          {patient ? `${patient.age} · ${patient.location}` : 'Accept a patient connection request to view data.'}
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
-          <Metric label={t('accuracy')} value={`${latest?.accuracy ?? avgAccuracy}%`} />
-          <Metric label={t('avgReaction')} value={`${avgLatency} ms`} />
-          <Metric label={t('difficulty')} value={latest?.difficulty || DOCTOR_OVERVIEW.difficulty} />
-          <Metric label={t('gameSessions')} value={String(sessions.length || DOCTOR_OVERVIEW.sessionsThisWeek)} />
+          <Metric label={t('accuracy')} value={sessions.length ? `${latest?.accuracy ?? avgAccuracy}%` : 'No data'} />
+          <Metric label={t('avgReaction')} value={sessions.length ? `${avgLatency} ms` : 'No data'} />
+          <Metric label={t('difficulty')} value={latest?.difficulty || 'No data'} />
+          <Metric label={t('gameSessions')} value={String(sessions.length)} />
         </div>
       </section>
+
+      {requests.length ? (
+        <section className="mt-4 rounded-3xl border-2 border-orange bg-paper p-5">
+          <h2 className="text-xl font-extrabold">Patient Connection Requests</h2>
+          <div className="mt-3 space-y-3">
+            {requests.map((request) => (
+              <div key={request.id} className="rounded-2xl bg-cream p-4">
+                <p className="text-lg font-bold">{request.patient?.fullName || 'Patient'} wants to connect with you as their doctor.</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); setRequests((current) => current.filter((item) => item.id !== request.id)); window.location.reload() }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'rejected', user); setRequests((current) => current.filter((item) => item.id !== request.id)) }} className="min-h-12 rounded-xl bg-orange text-base font-extrabold text-white">Reject</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <p className="text-lg font-extrabold">{t('caregiverAuth')}</p>
@@ -323,7 +361,7 @@ export default function DoctorDashboard() {
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('difficultyCap')}</h2>
         <p className="mt-1 text-lg text-muted">
-          {t('lookingAfter', { name: patient?.fullName || PATIENT.name })}
+          {patient ? t('lookingAfter', { name: patient.fullName }) : 'No connected patient yet.'}
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {LEVEL_ORDER.map((level) => (
@@ -363,6 +401,22 @@ export default function DoctorDashboard() {
         <button type="button" onClick={saveFeedback} className="mt-4 min-h-14 w-full rounded-2xl bg-orange text-xl font-extrabold text-white">
           {t('sendFeedback')}
         </button>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Daily Tasks</h2>
+        <form onSubmit={addTask} className="mt-3 flex gap-2">
+          <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="Add a task" className="min-h-12 min-w-0 flex-1 rounded-xl border-2 border-line bg-cream px-3 text-lg" />
+          <button type="submit" className="min-h-12 rounded-xl bg-green px-4 font-extrabold text-white">Add</button>
+        </form>
+        <div className="mt-3 space-y-2">
+          {tasks.length ? tasks.map((task) => (
+            <label key={task.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
+              <input type="checkbox" checked={task.completed} onChange={async (event) => { await completeDailyTask(task.id, patient?.id, event.target.checked); setTasks(await listDailyTasks(patient.id, new Date().toISOString().slice(0, 10))) }} className="h-6 w-6" />
+              {task.title}
+            </label>
+          )) : <p className="text-muted">No daily tasks yet.</p>}
+        </div>
       </section>
 
       <Toast message={toast} onClose={() => setToast('')} />

@@ -71,3 +71,20 @@ db.version(5).stores({
   syncQueue: 'id, status, createdAt',
   audioCache: 'cacheKey, language, textHash, createdAt, lastUsedAt',
 })
+
+db.version(6).stores({
+  users: 'id, firebaseUid, email, mobile, role',
+  sessions: 'id, userId, type, gameType, createdAt',
+  gameScores: 'id, userId, createdAt',
+  telemetry: 'id, userId, createdAt, kind',
+  reminders: 'id, userId',
+  settings: 'id, userId',
+  familiarPeople: 'id, patientId, createdAt',
+  familiarPlaces: 'id, patientId, createdAt',
+  familiarThings: 'id, patientId, createdAt',
+  recognitionItems: 'id, patientId, category, difficulty, createdAt',
+  relationships: 'id, patientId, caregiverId, doctorId, status, createdAt',
+  dailyTasks: 'id, patientId, date, completed, createdAt',
+  syncQueue: 'id, status, createdAt',
+  audioCache: 'cacheKey, language, textHash, createdAt, lastUsedAt',
+})
