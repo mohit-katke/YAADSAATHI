@@ -17,6 +17,7 @@ const empty = {
   role: '',
   relationship: '',
   specialization: '',
+  caregiverId: '',
   textLang: 'en',
   voiceLang: 'as',
   password: '',
@@ -50,6 +51,7 @@ export default function CreateAccount() {
     if (step === 3) {
       if (form.role === 'caregiver' && form.relationship.trim().length < 2) return t('errName')
       if (form.role === 'doctor' && form.specialization.trim().length < 2) return t('errName')
+      if (form.role === 'patient' && form.caregiverId.trim().length < 1) return 'Caregiver ID is required. Enter the ID provided by your caregiver.'
     }
     if (step === 5) {
       if (form.password.length < 8) return t('errPasswordLen')
@@ -74,7 +76,9 @@ export default function CreateAccount() {
       const result = await register(form)
       navigate(result.path)
     } catch (err) {
-      setError(t('errDuplicate'))
+      setError(err?.code === 'caregiver-not-found'
+        ? 'Caregiver ID not found. Please check the ID and try again.'
+        : t('errDuplicate'))
     } finally {
       setBusy(false)
     }
@@ -126,7 +130,10 @@ export default function CreateAccount() {
                 <Field label={t('specialization')} value={form.specialization} onChange={(v) => setField('specialization', v)} placeholder="Geriatric care" />
               ) : null}
               {form.role === 'patient' ? (
-                <p className="text-lg font-semibold text-muted">{t('patientHint')}</p>
+                <>
+                  <p className="text-lg font-semibold text-muted">Enter the ID provided by your caregiver.</p>
+                  <Field label="Caregiver ID" value={form.caregiverId} onChange={(v) => setField('caregiverId', v)} placeholder="user_..." />
+                </>
               ) : null}
             </>
           ) : null}

@@ -44,6 +44,7 @@ export async function firebaseRegister(profile) {
     specialization: profile.specialization || '',
     textLanguage: profile.textLang,
     voiceLanguage: profile.voiceLang,
+    caregiverId: profile.caregiverId || null,
     createdAt: now,
     updatedAt: now,
   })
@@ -56,6 +57,16 @@ export async function firebaseLogout() {
 
 export async function uploadFirestoreRecord(record) {
   if (!firestore) return false
-  await setDoc(doc(firestore, 'syncQueue', record.id), record.payload)
+  const payload = record.payload?.payload || record.payload || {}
+  const collection = record.payload?.kind === 'gameSession'
+    ? 'gameSessions'
+    : record.payload?.kind === 'dailyTask'
+      ? 'dailyTasks'
+      : record.payload?.kind === 'relationship'
+        ? 'relationships'
+        : record.payload?.kind === 'story_recall'
+          ? 'gameSessions'
+          : 'telemetry'
+  await setDoc(doc(firestore, collection, payload.id || record.id), payload, { merge: true })
   return true
 }

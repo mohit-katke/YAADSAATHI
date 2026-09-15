@@ -22,6 +22,17 @@ export function BarChart({ data, label }) {
 }
 
 export function LineChart({ data, label, unit = 'ms' }) {
+  if (!data.length) {
+    return (
+      <div>
+        <p className="mb-3 text-lg font-extrabold text-ink">{label}</p>
+        <p className="rounded-2xl bg-cream p-4 text-base font-semibold text-muted">
+          No session data available yet.
+        </p>
+      </div>
+    )
+  }
+
   const width = 320
   const height = 140
   const pad = 16
@@ -30,7 +41,7 @@ export function LineChart({ data, label, unit = 'ms' }) {
   const max = Math.max(...values)
   const span = max - min || 1
   const points = data.map((d, i) => {
-    const x = pad + (i * (width - pad * 2)) / (data.length - 1)
+    const x = data.length === 1 ? width / 2 : pad + (i * (width - pad * 2)) / (data.length - 1)
     const y = height - pad - ((d.ms - min) / span) * (height - pad * 2)
     return `${x},${y}`
   })
@@ -48,7 +59,7 @@ export function LineChart({ data, label, unit = 'ms' }) {
           points={points.join(' ')}
         />
         {data.map((d, i) => {
-          const x = pad + (i * (width - pad * 2)) / (data.length - 1)
+          const x = data.length === 1 ? width / 2 : pad + (i * (width - pad * 2)) / (data.length - 1)
           const y = height - pad - ((d.ms - min) / span) * (height - pad * 2)
           return <circle key={d.day} cx={x} cy={y} r="5" fill="#E06A2C" />
         })}

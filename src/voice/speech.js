@@ -96,13 +96,8 @@ export function speakWithBrowser(text, langId, { onStart, onEnd, onError } = {})
   }
 }
 
-/**
- * Voice layer: browser speech synthesis now.
- * Bhashini AI can replace `speak` later without changing screens.
- */
 export const voiceEngine = {
   provider: 'browser-speech-synthesis',
-  futureProvider: 'bhashini',
   speak(text, langId, hooks) {
     return speakWithBrowser(text, langId, hooks)
   },

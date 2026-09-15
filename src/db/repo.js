@@ -1,25 +1,52 @@
 import { DEMO_IDS, db } from './database'
 import { hashPassword, looksLikeEmail, newId, normalizeEmail, normalizeMobile } from './crypto'
-import {
-  DEFAULT_REMINDERS,
-  DEFAULT_ROUTINE,
-  DEMO_FAMILIAR_PEOPLE,
-  DEMO_FAMILIAR_PLACES,
-  SESSION_HISTORY,
-} from '../data/mock'
+import { normalizeDifficultyLevel } from '../data/mock'
 import { uploadFirestoreRecord } from '../firebase/client'
 
 const AUTH_SESSION_ID = 'auth_current'
 const DEVICE_SETTINGS_ID = 'settings_device'
 
 export async function ensureSeeded() {
-  const count = await db.users.count()
-  if (count > 0) return
+  if (import.meta.env.DEV) {
+    const existingDemo = await db.users.get(DEMO_IDS.patient)
+    if (!existingDemo) await seedDevelopmentDemoData()
+    return
+  }
 
+  // Remove records from older prototype installations. New installations stay empty.
+  const legacyUsers = await db.users
+    .filter((user) => (
+      Object.values(DEMO_IDS).includes(user.id) ||
+      ['Mina Devi', 'Rina Devi', 'Dr. A. Sharma'].includes(user.fullName)
+    ))
+    .toArray()
+  const demoIds = [...new Set([...Object.values(DEMO_IDS), ...legacyUsers.map((user) => user.id)])]
+  const legacyPatientIds = legacyUsers.filter((user) => user.role === 'patient').map((user) => user.id)
+  await db.users.bulkDelete(demoIds)
+  for (const table of [db.sessions, db.gameScores, db.telemetry, db.reminders, db.settings]) {
+    await table.where('userId').anyOf(demoIds).delete()
+  }
+  for (const table of [db.familiarPeople, db.familiarPlaces, db.familiarThings, db.recognitionItems, db.dailyTasks]) {
+    for (const patientId of [...new Set([DEMO_IDS.patient, ...legacyPatientIds])]) {
+      await table.where('patientId').equals(patientId).delete()
+    }
+  }
+  for (const patientId of [...new Set([DEMO_IDS.patient, ...legacyPatientIds])]) {
+    await db.relationships.where('patientId').equals(patientId).delete()
+  }
+  await db.relationships.where('caregiverId').anyOf(demoIds).delete()
+  await db.relationships.where('doctorId').anyOf(demoIds).delete()
+  const auth = await db.sessions.get(AUTH_SESSION_ID)
+  if (auth && demoIds.includes(auth.userId)) await db.sessions.delete(AUTH_SESSION_ID)
+}
+
+async function seedDevelopmentDemoData() {
   const now = Date.now()
-  const patientHash = await hashPassword('Patient12')
-  const caregiverHash = await hashPassword('Caregiver1')
-  const doctorHash = await hashPassword('Doctor123')
+  const [patientHash, caregiverHash, doctorHash] = await Promise.all([
+    hashPassword('Patient12'),
+    hashPassword('Caregiver1'),
+    hashPassword('Doctor123'),
+  ])
 
   await db.users.bulkAdd([
     {
@@ -33,8 +60,6 @@ export async function ensureSeeded() {
       passwordHash: patientHash,
       textLang: 'en',
       voiceLang: 'as',
-      relationship: '',
-      specialization: '',
       createdAt: now,
     },
     {
@@ -49,7 +74,6 @@ export async function ensureSeeded() {
       textLang: 'hi',
       voiceLang: 'as',
       relationship: 'Daughter',
-      specialization: '',
       linkedPatientId: DEMO_IDS.patient,
       createdAt: now,
     },
@@ -64,51 +88,57 @@ export async function ensureSeeded() {
       passwordHash: doctorHash,
       textLang: 'en',
       voiceLang: 'hi',
-      relationship: '',
       specialization: 'Geriatric neurology',
       linkedPatientId: DEMO_IDS.patient,
       createdAt: now,
     },
   ])
 
-  await db.reminders.bulkAdd(
-    DEFAULT_REMINDERS.map((item) => ({ ...item, userId: DEMO_IDS.patient })),
-  )
-
   await db.settings.put({
     id: `settings_${DEMO_IDS.patient}`,
     userId: DEMO_IDS.patient,
-    routine: DEFAULT_ROUTINE,
-    difficultyCap: 'Medium',
-    currentDifficulty: 'Medium',
+    difficultyCap: 'Level 3',
+    currentDifficulty: 'Level 3',
     doctorAuthorized: true,
+    routine: [],
     createdAt: now,
   })
-
-  await db.familiarPeople.bulkAdd(
-    DEMO_FAMILIAR_PEOPLE.map((person) => ({ ...person, patientId: DEMO_IDS.patient, imageAsset: null, createdAt: now, updatedAt: now })),
-  )
-  await db.familiarPlaces.bulkAdd(
-    DEMO_FAMILIAR_PLACES.map((place) => ({ ...place, patientId: DEMO_IDS.patient, imageAsset: null, createdAt: now, updatedAt: now })),
-  )
-
-  await db.sessions.bulkAdd(
-    SESSION_HISTORY.map((row, index) => ({
-      id: row.id,
+  await db.reminders.bulkAdd([
+    { id: 'demo_reminder_medicine', userId: DEMO_IDS.patient, time: '08:00 AM', text: 'Morning medicine', done: false, createdAt: now },
+    { id: 'demo_reminder_walk', userId: DEMO_IDS.patient, time: '06:00 PM', text: 'Evening walk', done: true, createdAt: now },
+  ])
+  await db.relationships.bulkAdd([
+    { id: `${DEMO_IDS.caregiver}_${DEMO_IDS.patient}`, patientId: DEMO_IDS.patient, caregiverId: DEMO_IDS.caregiver, doctorId: null, role: 'caregiver', status: 'accepted', createdAt: now },
+    { id: `${DEMO_IDS.doctor}_${DEMO_IDS.patient}`, patientId: DEMO_IDS.patient, caregiverId: null, doctorId: DEMO_IDS.doctor, role: 'doctor', status: 'accepted', createdAt: now },
+  ])
+  await db.sessions.bulkAdd([
+    {
+      id: 'demo_session_memory_1',
       userId: DEMO_IDS.patient,
       type: 'cognitive',
-      game: row.game,
-      gameType: row.game.toLowerCase().replaceAll(' ', '-'),
-      dateLabel: row.date,
-      accuracy: row.accuracy,
-      avgReactionMs: row.latency,
-      difficulty: row.difficulty,
-      score: Math.round((row.accuracy / 100) * 30),
-      tries: 3,
-      matches: 3,
-      createdAt: now - (SESSION_HISTORY.length - index) * 86400000,
-    })),
-  )
+      game: 'Memory Match',
+      gameType: 'memory-match',
+      dateLabel: 'Today',
+      accuracy: 86,
+      avgReactionMs: 740,
+      difficulty: 'Level 2',
+      score: 26,
+      createdAt: now - 86400000,
+    },
+    {
+      id: 'demo_session_story_1',
+      userId: DEMO_IDS.patient,
+      type: 'cognitive',
+      game: 'Story Recall',
+      gameType: 'story-recall',
+      dateLabel: 'Yesterday',
+      accuracy: 75,
+      avgReactionMs: 910,
+      difficulty: 'Level 2',
+      score: 23,
+      createdAt: now - 2 * 86400000,
+    },
+  ])
 }
 
 export async function findUserByEmailOrMobile(identifier) {
@@ -138,7 +168,8 @@ export async function registerUser(profile) {
     throw error
   }
   const user = {
-    id: newId('user'),
+    id: profile.firebaseUid || newId('user'),
+    firebaseUid: profile.firebaseUid || null,
     fullName: profile.fullName.trim(),
     age: Number(profile.age),
     mobile: normalizeMobile(profile.mobile),
@@ -150,29 +181,32 @@ export async function registerUser(profile) {
     voiceLang: profile.voiceLang,
     relationship: profile.relationship || '',
     specialization: profile.specialization || '',
-    linkedPatientId: profile.role === 'patient' ? null : DEMO_IDS.patient,
+    linkedPatientId: null,
     createdAt: Date.now(),
   }
+  if (user.role === 'patient') {
+    const caregiverId = String(profile.caregiverId || '').trim()
+    const caregiver = await db.users.get(caregiverId) || await db.users.where('firebaseUid').equals(caregiverId).first()
+    if ((!caregiver || caregiver.role !== 'caregiver') && !profile.caregiverExists) {
+      const error = new Error('caregiver-not-found')
+      error.code = 'caregiver-not-found'
+      throw error
+    }
+  }
   await db.users.add(user)
+  if (user.role === 'patient') {
+    await createRelationship({ patientId: user.id, caregiverId: String(profile.caregiverId).trim(), role: 'caregiver' })
+  }
+
   await db.settings.put({
     id: `settings_${user.id}`,
     userId: user.id,
-    routine: DEFAULT_ROUTINE.map((item) => ({ ...item, done: false })),
+    routine: [],
     difficultyCap: 'Medium',
     currentDifficulty: 'Easy',
     doctorAuthorized: false,
     createdAt: Date.now(),
   })
-  if (user.role === 'patient') {
-    await db.reminders.bulkAdd(
-      DEFAULT_REMINDERS.map((item) => ({
-        ...item,
-        id: newId('rem'),
-        userId: user.id,
-        done: false,
-      })),
-    )
-  }
   return user
 }
 
@@ -217,7 +251,7 @@ export async function getLinkedPatient(user) {
     const linked = await db.users.get(user.linkedPatientId)
     if (linked) return linked
   }
-  return db.users.get(DEMO_IDS.patient)
+  return null
 }
 
 export async function getSettings(userId) {
@@ -232,7 +266,7 @@ export async function getSettings(userId) {
     difficultyCap: 'Medium',
     currentDifficulty: 'Medium',
     doctorAuthorized: true,
-    routine: DEFAULT_ROUTINE,
+    routine: [],
     createdAt: Date.now(),
   }
   await db.settings.put(fallback)
@@ -251,16 +285,18 @@ export async function getDeviceLanguage() {
   return {
     textLang: row?.textLang || 'en',
     voiceLang: row?.voiceLang || 'en',
+    voiceEnabled: row?.voiceEnabled !== false,
   }
 }
 
-export async function saveDeviceLanguage(textLang, voiceLang) {
+export async function saveDeviceLanguage(textLang, voiceLang, voiceEnabled = true) {
   const current = (await db.settings.get(DEVICE_SETTINGS_ID)) || {
     id: DEVICE_SETTINGS_ID,
     userId: 'device',
     createdAt: Date.now(),
   }
-  await db.settings.put({ ...current, textLang, voiceLang, updatedAt: Date.now() })
+
+  await db.settings.put({ ...current, textLang, voiceLang, voiceEnabled, updatedAt: Date.now() })
 }
 
 export async function updateUserLanguages(userId, textLang, voiceLang) {
@@ -275,7 +311,10 @@ export async function getReminders(userId) {
 }
 
 export async function saveReminder(reminder) {
-  await db.reminders.put(reminder)
+  const updated = { ...reminder, updatedAt: Date.now() }
+  await db.reminders.put(updated)
+  await enqueueSync({ kind: 'reminder', payload: updated })
+  return updated
 }
 
 export async function addReminder(userId, payload) {
@@ -285,14 +324,23 @@ export async function addReminder(userId, payload) {
     time: payload.time,
     text: payload.text,
     done: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
   }
   await db.reminders.add(item)
+  await enqueueSync({ kind: 'reminder', payload: item })
   return item
+}
+
+export async function completeReminder(id, userId, done) {
+  const reminder = await db.reminders.get(id)
+  if (!reminder || reminder.userId !== userId) return null
+  return saveReminder({ ...reminder, done: Boolean(done) })
 }
 
 export async function getRoutine(userId) {
   const settings = await getSettings(userId)
-  return settings.routine || DEFAULT_ROUTINE
+  return settings.routine || []
 }
 
 export async function saveRoutine(userId, routine) {
@@ -339,16 +387,204 @@ export async function listFamiliarPlaces(patientId) {
   return db.familiarPlaces.where('patientId').equals(patientId).toArray()
 }
 
+export async function listFamiliarThings(patientId) {
+  return db.familiarThings.where('patientId').equals(patientId).toArray()
+}
+
 export async function saveFamiliarPerson(patientId, person) {
-  const row = { ...person, id: person.id || newId('person'), patientId, createdAt: person.createdAt || Date.now(), updatedAt: Date.now() }
+  const row = {
+    ...person,
+    id: person.id || newId('person'),
+    patientId,
+    kind: 'person',
+    createdAt: person.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  }
   await db.familiarPeople.put(row)
   return row
 }
 
 export async function saveFamiliarPlace(patientId, place) {
-  const row = { ...place, id: place.id || newId('place'), patientId, createdAt: place.createdAt || Date.now(), updatedAt: Date.now() }
+  const row = {
+    ...place,
+    id: place.id || newId('place'),
+    patientId,
+    kind: 'place',
+    createdAt: place.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  }
   await db.familiarPlaces.put(row)
   return row
+}
+
+export async function saveFamiliarThing(patientId, thing) {
+  const row = {
+    ...thing,
+    id: thing.id || newId('thing'),
+    patientId,
+    kind: 'thing',
+    createdAt: thing.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  }
+  await db.familiarThings.put(row)
+  return row
+}
+
+export async function saveRecognitionItem({ id, patientId, kind, name, relationship = '', description = '', imageDataUrl = '', imageName = '', imageMime = '', createdByRole = 'caregiver' }) {
+  const existing = id ? await db.recognitionItems.get(id) : null
+  const category = String(kind || arguments[0]?.category || '').trim().toLowerCase()
+  const safeCategory = ['person', 'place', 'thing'].includes(category) ? category : 'thing'
+  const question = String(arguments[0]?.question || name || '').trim() || (
+    safeCategory === 'person' ? 'Who is this?' : safeCategory === 'place' ? 'What place is this?' : 'What is this?'
+  )
+  const optionList = Array.isArray(arguments[0]?.options)
+    ? arguments[0].options.map((option) => String(option || '').trim()).filter(Boolean)
+    : []
+  const entries = optionList.length >= 4 ? optionList.slice(0, 4) : [
+    String(arguments[0]?.option1 || arguments[0]?.options?.[0] || '').trim(),
+    String(arguments[0]?.option2 || arguments[0]?.options?.[1] || '').trim(),
+    String(arguments[0]?.option3 || arguments[0]?.options?.[2] || '').trim(),
+    String(arguments[0]?.option4 || arguments[0]?.options?.[3] || '').trim(),
+  ].filter(Boolean)
+
+  while (entries.length < 4) {
+    entries.push(`Option ${entries.length + 1}`)
+  }
+
+  const correctAnswer = String(arguments[0]?.correctAnswer || relationship || name || entries[0] || '').trim()
+  const finalCorrectAnswer = entries.includes(correctAnswer) ? correctAnswer : entries[0]
+  const row = {
+    id: id || newId('rec'),
+    patientId,
+    category: safeCategory,
+    question,
+    options: entries.slice(0, 4),
+    correctAnswer: finalCorrectAnswer,
+    difficulty: normalizeDifficultyLevel(arguments[0]?.difficulty || 'Level 1', 'Level 1'),
+    imageDataUrl: String(imageDataUrl || existing?.imageDataUrl || existing?.imageBlob || '').trim(),
+    imageBlob: String(imageDataUrl || existing?.imageBlob || existing?.imageDataUrl || '').trim(),
+    imageName: String(imageName || existing?.imageName || '').trim(),
+    imageMime: String(imageMime || existing?.imageMime || '').trim(),
+    createdBy: existing?.createdBy || createdByRole,
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now(),
+    name: String(name || '').trim(),
+    relationship: String(relationship || '').trim(),
+    description: String(description || '').trim(),
+    kind: safeCategory,
+  }
+
+  if (existing && existing.category !== safeCategory) {
+    if (existing.category === 'person') await db.familiarPeople.delete(existing.id)
+    if (existing.category === 'place') await db.familiarPlaces.delete(existing.id)
+    if (existing.category === 'thing') await db.familiarThings.delete(existing.id)
+  }
+
+  if (id) await db.recognitionItems.put(row)
+  else await db.recognitionItems.add(row)
+
+  if (patientId) {
+    const existingLegacy = await db.familiarPeople.get(row.id)
+    if (!existingLegacy) {
+      // compatibility path maintained for older data format
+    }
+  }
+
+  if (safeCategory === 'person') {
+    await db.familiarPeople.put({
+      id: row.id,
+      patientId,
+      name: String(name || '').trim() || finalCorrectAnswer,
+      relationship: String(relationship || '').trim(),
+      description: String(description || '').trim(),
+      emoji: '👤',
+      imageDataUrl: row.imageDataUrl,
+      kind: 'person',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+  } else if (safeCategory === 'place') {
+    await db.familiarPlaces.put({
+      id: row.id,
+      patientId,
+      name: String(name || '').trim() || finalCorrectAnswer,
+      description: String(description || '').trim(),
+      emoji: '📍',
+      imageDataUrl: row.imageDataUrl,
+      kind: 'place',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+  } else if (safeCategory === 'thing') {
+    await db.familiarThings.put({
+      id: row.id,
+      patientId,
+      name: String(name || '').trim() || finalCorrectAnswer,
+      description: String(description || '').trim(),
+      emoji: '🧩',
+      imageDataUrl: row.imageDataUrl,
+      kind: 'thing',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+  }
+
+  return row
+}
+
+export async function deleteRecognitionItem(id) {
+  const item = await db.recognitionItems.get(id)
+  await db.recognitionItems.delete(id)
+  if (item?.category === 'person') await db.familiarPeople.delete(id)
+  if (item?.category === 'place') await db.familiarPlaces.delete(id)
+  if (item?.category === 'thing') await db.familiarThings.delete(id)
+}
+
+export async function listRecognitionItems(patientId) {
+  const [custom, people, places, things] = await Promise.all([
+    db.recognitionItems.where('patientId').equals(patientId).toArray(),
+    listFamiliarPeople(patientId),
+    listFamiliarPlaces(patientId),
+    listFamiliarThings(patientId),
+  ])
+
+  const customIds = new Set(custom.map((item) => item.id))
+  const legacy = [
+    ...people.map((item) => ({ ...item, kind: 'person' })),
+    ...places.map((item) => ({ ...item, kind: 'place' })),
+    ...things.map((item) => ({ ...item, kind: 'thing' })),
+  ].filter((item) => !customIds.has(item.id))
+
+  return [
+    ...custom.map((item) => ({
+      ...item,
+      id: item.id,
+      category: item.category || item.kind || 'thing',
+      name: item.name || item.correctAnswer || 'Question',
+      question: item.question || 'What is this?',
+      options: Array.isArray(item.options) && item.options.length >= 4 ? item.options.slice(0, 4) : [item.correctAnswer || 'Option 1', 'Option 2', 'Option 3', 'Option 4'],
+      correctAnswer: item.correctAnswer || item.options?.[0] || 'Option 1',
+      imageDataUrl: item.imageDataUrl || item.imageBlob || '',
+      difficulty: normalizeDifficultyLevel(item.difficulty || 'Level 1', 'Level 1'),
+      kind: item.category || item.kind || 'thing',
+    })),
+    ...legacy.map((item) => {
+      const type = item.kind || 'thing'
+      const fallbackCorrect = item.name || item.relationship || item.description || 'Item'
+      return {
+        id: item.id,
+        patientId,
+        category: type,
+        question: type === 'person' ? 'Who is this?' : type === 'place' ? 'What place is this?' : 'What is this?',
+        options: [fallbackCorrect, 'Another choice', 'Different option', 'One more choice'],
+        correctAnswer: fallbackCorrect,
+        difficulty: normalizeDifficultyLevel(item.difficulty || 'Level 1', 'Level 1'),
+        imageDataUrl: item.imageDataUrl || item.imageAsset || item.imageBlob || '',
+        kind: type,
+        name: fallbackCorrect,
+      }
+    }),
+  ].sort((a, b) => String(a.name || a.question || '').localeCompare(String(b.name || b.question || '')))
 }
 
 export async function listGameScores(userId) {
@@ -451,6 +687,79 @@ export async function processSyncQueue() {
   return { processed, note: processed ? 'synced' : 'queued' }
 }
 
+export async function findUserById(id) {
+  return id ? db.users.get(String(id).trim()) : null
+}
+
+export async function createRelationship({ patientId, caregiverId, doctorId, role }) {
+  const key = role === 'doctor' ? doctorId : caregiverId
+  const field = role === 'doctor' ? 'doctorId' : 'caregiverId'
+  const existing = await db.relationships.where(field).equals(key).filter((row) => row.patientId === patientId).first()
+  if (existing) return existing
+  const row = {
+    id: `${key}_${patientId}`,
+    patientId,
+    caregiverId: role === 'caregiver' ? key : null,
+    doctorId: role === 'doctor' ? key : null,
+    role,
+    status: 'pending',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+  await db.relationships.add(row)
+  await enqueueSync({ kind: 'relationship', payload: row })
+  return row
+}
+
+export async function listRelationshipsForUser(user) {
+  if (!user) return []
+  return db.relationships.where(user.role === 'patient' ? 'patientId' : user.role === 'caregiver' ? 'caregiverId' : 'doctorId').equals(user.id).toArray()
+}
+
+export async function listPendingRelationships(user) {
+  return (await listRelationshipsForUser(user)).filter((row) => row.status === 'pending')
+}
+
+export async function updateRelationshipStatus(id, status, actor) {
+  const row = await db.relationships.get(id)
+  if (!row || !actor) return null
+  const allowed = actor.role === 'caregiver' ? row.caregiverId === actor.id : actor.role === 'doctor' ? row.doctorId === actor.id : row.patientId === actor.id
+  if (!allowed || !['accepted', 'rejected', 'pending'].includes(status)) return null
+  const updated = { ...row, status, updatedAt: Date.now() }
+  await db.relationships.put(updated)
+  await enqueueSync({ kind: 'relationship', payload: updated })
+  return updated
+}
+
+export async function getAuthorizedPatient(user) {
+  if (!user) return null
+  if (user.role === 'patient') return user
+  const relationships = await listRelationshipsForUser(user)
+  const active = relationships.find((row) => row.status === 'accepted')
+  return active ? db.users.get(active.patientId) : null
+}
+
+export async function addDailyTask(patientId, createdBy, payload) {
+  const row = { id: newId('task'), patientId, createdBy, createdByRole: payload.createdByRole, title: String(payload.title || '').trim(), description: String(payload.description || '').trim(), date: payload.date || new Date().toISOString().slice(0, 10), dueTime: payload.dueTime || '', completed: false, createdAt: Date.now(), updatedAt: Date.now() }
+  if (!row.title) throw new Error('task-title-required')
+  await db.dailyTasks.add(row)
+  await enqueueSync({ kind: 'dailyTask', payload: row })
+  return row
+}
+
+export async function listDailyTasks(patientId, date) {
+  const rows = await db.dailyTasks.where('patientId').equals(patientId).toArray()
+  return rows.filter((row) => !date || row.date === date).sort((a, b) => a.createdAt - b.createdAt)
+}
+
+export async function completeDailyTask(id, patientId, completed) {
+  const row = await db.dailyTasks.get(id)
+  if (!row || row.patientId !== patientId) return null
+  const updated = { ...row, completed: Boolean(completed), completedAt: completed ? Date.now() : null, updatedAt: Date.now() }
+  await db.dailyTasks.put(updated)
+  await enqueueSync({ kind: 'dailyTask', payload: updated })
+  return updated
+}
 export function rolePath(role) {
   if (role === 'caregiver') return '/caregiver'
   if (role === 'doctor') return '/doctor'

@@ -12,7 +12,7 @@ const ROLES = [
 
 export default function RoleSelect() {
   const navigate = useNavigate()
-  const { t, tVoice, voiceLang } = useI18n()
+  const { t, tVoice, voiceLang, voiceEnabled } = useI18n()
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-6 pb-28">
@@ -25,7 +25,7 @@ export default function RoleSelect() {
             key={role.id}
             type="button"
             onClick={() => {
-              voiceEngine.speak(tVoice('voiceNav'), voiceLang)
+              if (voiceEnabled) voiceEngine.speak(tVoice('voiceNav'), voiceLang)
               navigate(role.path)
             }}
             className={`${role.color} flex min-h-40 flex-col items-center justify-center rounded-3xl px-4 py-8 text-white shadow-sm`}

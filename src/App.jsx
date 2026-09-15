@@ -4,7 +4,6 @@ import CreateAccount from './pages/CreateAccount'
 import RoleSelect from './pages/RoleSelect'
 import PatientDashboard from './pages/PatientDashboard'
 import MemoryGame from './pages/MemoryGame'
-import DailyRoutine from './pages/DailyRoutine'
 import VoiceAssist from './pages/VoiceAssist'
 import StoryRecall from './pages/StoryRecall'
 import CaregiverDashboard from './pages/CaregiverDashboard'
@@ -53,14 +52,6 @@ export default function App() {
           element={
             <RequireSession>
               <MemoryGame />
-            </RequireSession>
-          }
-        />
-        <Route
-          path="/patient/routine"
-          element={
-            <RequireSession>
-              <DailyRoutine />
             </RequireSession>
           }
         />

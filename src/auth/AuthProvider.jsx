@@ -46,6 +46,13 @@ export function AuthProvider({ children }) {
       }
     }
     if (firebaseConfigured) {
+      if (!identifier.includes('@')) {
+        const localMobile = await verifyCredentials(identifier, password)
+        if (!localMobile) return { ok: false }
+        await setAuthSession(localMobile)
+        setUser(localMobile)
+        return { ok: true, user: localMobile, path: rolePath(localMobile.role) }
+      }
       const account = await firebaseLogin(identifier, password)
       if (!account) return { ok: false }
       const profile = await firebaseProfile(account.uid)
@@ -76,11 +83,24 @@ export function AuthProvider({ children }) {
   }, [])
 
   const register = useCallback(async (profile) => {
+    let account = null
     if (firebaseConfigured) {
-      const account = await firebaseRegister(profile)
+      if (profile.role === 'patient') {
+        const caregiver = await firebaseProfile(profile.caregiverId)
+        if (!caregiver || caregiver.role !== 'caregiver') {
+          const error = new Error('caregiver-not-found')
+          error.code = 'caregiver-not-found'
+          throw error
+        }
+      }
+      account = await firebaseRegister(profile)
       if (!account) return { ok: false }
     }
-    const created = await registerUser(profile)
+    const created = await registerUser({
+      ...profile,
+      firebaseUid: account?.uid || null,
+      caregiverExists: Boolean(firebaseConfigured && profile.role === 'patient'),
+    })
     await setAuthSession(created)
     setUser(created)
     return { ok: true, user: created, path: rolePath(created.role) }

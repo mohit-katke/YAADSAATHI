@@ -4,7 +4,7 @@ import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
 
 export default function VoiceAssist() {
-  const { t, tVoice, voiceLang } = useI18n()
+  const { t, tVoice, voiceLang, voiceEnabled } = useI18n()
   const [line, setLine] = useState(() => tVoice('promptWalk'))
   const [speaking, setSpeaking] = useState(false)
   const [note, setNote] = useState('')
@@ -12,6 +12,10 @@ export default function VoiceAssist() {
   const keys = ['promptWalk', 'promptWater', 'promptGame', 'promptFamily']
 
   function speak() {
+    if (!voiceEnabled) {
+      setNote('Voice Assistant is off. Turn it on from Language settings.')
+      return
+    }
     const key = keys[Math.floor(Math.random() * keys.length)]
     const next = tVoice(key)
     setLine(next)

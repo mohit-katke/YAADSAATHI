@@ -1,8 +1,23 @@
-export const LANGS = [
-  { id: 'en', label: 'English', native: 'English', speech: 'en-IN' },
-  { id: 'hi', label: 'Hindi', native: 'हिन्दी', speech: 'hi-IN' },
-  { id: 'as', label: 'Assamese', native: 'অসমীয়া', speech: 'as-IN' },
-]
+export const LANGUAGE_REGISTRY = {
+  en: { code: 'en', displayName: 'English', nativeName: 'English', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['en-IN', 'en-GB', 'en-US', 'en'] },
+  hi: { code: 'hi', displayName: 'Hindi', nativeName: 'हिन्दी', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['hi-IN', 'hi'] },
+  as: { code: 'as', displayName: 'Assamese', nativeName: 'অসমীয়া', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['as-IN', 'as'] },
+  bn: { code: 'bn', displayName: 'Bengali', nativeName: 'বাংলা', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['bn-IN', 'bn-BD', 'bn'] },
+  brx: { code: 'brx', displayName: 'Bodo', nativeName: 'बड़ो', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['brx-IN', 'brx'] },
+  mni: { code: 'mni', displayName: 'Meitei / Manipuri', nativeName: 'ꯃꯤꯇꯩ ꯂꯣꯟ', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['mni-IN', 'mni'] },
+  kha: { code: 'kha', displayName: 'Khasi', nativeName: 'Ka ktien Khasi', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['kha-IN', 'kha'] },
+  grt: { code: 'grt', displayName: 'Garo', nativeName: 'A·chik', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['grt-IN', 'grt'] },
+  lus: { code: 'lus', displayName: 'Mizo', nativeName: 'Mizo', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['lus-IN', 'lus'] },
+  trp: { code: 'trp', displayName: 'Kokborok / Tripuri', nativeName: 'ককবরক', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['trp-IN', 'trp'] },
+  ne: { code: 'ne', displayName: 'Nepali', nativeName: 'नेपाली', textSupported: true, voiceProvider: 'browser', fallbackVoice: null, browserVoiceAliases: ['ne-NP', 'ne-IN', 'ne'] },
+}
+
+export const LANGS = Object.values(LANGUAGE_REGISTRY).map((language) => ({
+  id: language.code,
+  label: language.displayName,
+  native: language.nativeName,
+  speech: language.browserVoiceAliases[0],
+}))
 
 export const STRINGS = {
   en: {
@@ -15,7 +30,7 @@ export const STRINGS = {
     hidePassword: 'Hide password',
     continue: 'Continue',
     createAccount: 'Create Account',
-    loginError: 'Incorrect email/mobile number or password.',
+    loginError: 'Incorrect ID or password. This account is not available in the database.',
     coreOffline: '✓ Core Features Work Offline',
     onlineTitle: 'Online',
     onlineBody: 'Sync available',
@@ -115,14 +130,15 @@ export const STRINGS = {
     voiceDemo: 'Hear reminders and game help in your voice language.',
     tapMic: 'Tap the microphone',
     speaking: 'Speaking…',
-    voiceUnavailable: 'Voice for this language is not available on this device. You can still use the text interface.',
+    voiceUnavailable: 'Voice is not available for this language on this device.',
     voiceBrowserFallback: 'Voice for this language is not available on this device. You can still use the text interface.',
     voiceError: 'Voice could not start. You can still use the text interface.',
     voiceAvailable: 'Voice is available on this device.',
+    voiceTextOnly: 'Text assistance is still available.',
     testVoice: 'Test Voice',
     voiceTest: 'This is a voice test for your selected language.',
     voiceTestStarted: 'Voice test started.',
-    voiceUnavailableFriendly: "Voice for this language isn't available on this device. You can still use the text interface.",
+    voiceUnavailableFriendly: 'Voice is not available for this language on this device.',
     langButton: 'Language',
     changeText: 'Change text language',
     changeVoice: 'Change voice language',
@@ -167,7 +183,7 @@ export const STRINGS = {
     hidePassword: 'पासवर्ड छिपाएँ',
     continue: 'जारी रखें',
     createAccount: 'खाता बनाएँ',
-    loginError: 'Incorrect email/mobile number or password.',
+    loginError: 'गलत आईडी या पासवर्ड। यह खाता डेटाबेस में उपलब्ध नहीं है।',
     coreOffline: '✓ मुख्य सुविधाएँ ऑफ़लाइन काम करती हैं',
     onlineTitle: 'ऑनलाइन',
     onlineBody: 'सिंक उपलब्ध',
@@ -271,6 +287,7 @@ export const STRINGS = {
     voiceBrowserFallback: 'इस भाषा की आवाज़ इस डिवाइस पर उपलब्ध नहीं है। आप टेक्स्ट इंटरफ़ेस का उपयोग कर सकते हैं।',
     voiceError: 'ब्राउज़र आवाज़ शुरू नहीं कर सका। माइक्रोफ़ोन फिर दबाएँ।',
     voiceAvailable: 'इस डिवाइस पर आवाज़ उपलब्ध है।',
+    voiceTextOnly: 'टेक्स्ट सहायता अभी भी उपलब्ध है।',
     testVoice: 'आवाज़ जाँचें',
     voiceTest: 'यह आपकी चुनी हुई भाषा की आवाज़ जाँच है।',
     voiceTestStarted: 'आवाज़ जाँच शुरू हो गई।',
@@ -319,7 +336,7 @@ export const STRINGS = {
     hidePassword: 'পাছৱৰ্ড লুকুৱাওক',
     continue: 'আগবাঢ়ক',
     createAccount: 'একাউণ্ট খোলক',
-    loginError: 'Incorrect email/mobile number or password.',
+    loginError: 'ভুল আইডি বা পাছৱৰ্ড। এই একাউণ্টটো ডাটাবেছত উপলব্ধ নহয়।',
     coreOffline: '✓ মূল সুবিধাসমূহ অফলাইনত কাম কৰে',
     onlineTitle: 'অনলাইন',
     onlineBody: 'ছিংক উপলব্ধ',
@@ -423,6 +440,7 @@ export const STRINGS = {
     voiceBrowserFallback: 'এই ভাষাৰ কণ্ঠ এই ডিভাইচত উপলব্ধ নহয়। আপুনি টেক্সট ইণ্টাৰফেচ ব্যৱহাৰ কৰিব পাৰে।',
     voiceError: 'ব্ৰাউজাৰে কণ্ঠ আৰম্ভ কৰিব নোৱাৰিলে। মাইক্ৰ’ফোনটো আকৌ টিপক।',
     voiceAvailable: 'এই ডিভাইচত কণ্ঠ উপলব্ধ আছে।',
+    voiceTextOnly: 'টেক্সট সহায়তা এতিয়াও উপলব্ধ।',
     testVoice: 'কণ্ঠ পৰীক্ষা কৰক',
     voiceTest: 'এইটো আপোনাৰ নিৰ্বাচিত ভাষাৰ কণ্ঠ পৰীক্ষা।',
     voiceTestStarted: 'কণ্ঠ পৰীক্ষা আৰম্ভ হৈছে।',
@@ -462,6 +480,74 @@ export const STRINGS = {
     feedbackPraise: 'চুটি দৈনিক অধিৱেশন উৎসাহিত কৰক',
   },
 }
+
+const CORE_TRANSLATIONS = {
+  en: {
+    activities: "Today's Activities", start: 'Start', nextQuestion: 'Next Question', previous: 'Previous', retryGame: 'Retry Game', finishSession: 'Finish Session', correct: 'Correct', incorrect: 'Incorrect', questionOf: 'Question {n} of {total}', averageReaction: 'Average reaction time', level1: 'Level 1', level2: 'Level 2', level3: 'Level 3', level4: 'Level 4', level5: 'Level 5', savedOnDevice: 'Saved on this device.', hiddenCard: 'Hidden card', voiceAssistant: 'Voice Assistant', settings: 'Settings', language: 'Language', voice: 'Voice', sync: 'Sync', edit: 'Edit', delete: 'Delete', familiarPeople: 'Familiar People', familiarPlaces: 'Familiar Places', everydayObjects: 'Everyday Objects', whoIsThis: 'Who Is This?', findMatchingPairs: 'Find matching pairs', recognizeFamiliarPeople: 'Recognize familiar people', recognizeRoutinePlaces: 'Recognize routine places', recognizeUsefulObjects: 'Recognize useful objects', simpleSteps: 'Simple steps for today', completed: 'Completed', notCompleted: 'Not completed', difficultyLabel: 'Difficulty', savedMessage: 'Saved on this device.', voiceUnavailableFriendly: 'Voice unavailable for this language on this device.',
+    voiceTest: 'This is a voice test for your selected language.', promptWalk: 'Namaste. Time for a short walk.', promptWater: 'Please drink a glass of water.', promptGame: 'It is time for your memory game.', promptFamily: 'Call your family when you are ready.',
+  },
+  hi: { activities: 'आज की गतिविधियाँ', start: 'शुरू करें', nextQuestion: 'अगला प्रश्न', previous: 'पिछला', retryGame: 'फिर से खेलें', finishSession: 'सत्र समाप्त करें', correct: 'सही', incorrect: 'गलत', questionOf: 'प्रश्न {n} / {total}', averageReaction: 'औसत प्रतिक्रिया समय', level1: 'स्तर 1', level2: 'स्तर 2', level3: 'स्तर 3', level4: 'स्तर 4', level5: 'स्तर 5', savedOnDevice: 'इस डिवाइस पर सहेजा गया।', hiddenCard: 'छिपा हुआ कार्ड', voiceAssistant: 'आवाज़ सहायक', settings: 'सेटिंग्स', language: 'भाषा', voice: 'आवाज़', sync: 'सिंक', edit: 'संपादित करें', delete: 'हटाएँ', familiarPeople: 'परिचित लोग', familiarPlaces: 'परिचित स्थान', everydayObjects: 'रोज़मर्रा की वस्तुएँ', whoIsThis: 'यह कौन है?', findMatchingPairs: 'मिलती जोड़ियाँ खोजें', recognizeFamiliarPeople: 'परिचित लोगों को पहचानें', recognizeRoutinePlaces: 'परिचित स्थान पहचानें', recognizeUsefulObjects: 'उपयोगी वस्तुएँ पहचानें', simpleSteps: 'आज के सरल कदम', completed: 'पूर्ण', notCompleted: 'अपूर्ण', difficultyLabel: 'कठिनाई', savedMessage: 'इस डिवाइस पर सहेजा गया।',
+  },
+  as: { activities: 'আজিৰ কাৰ্যকলাপ', start: 'আৰম্ভ কৰক', nextQuestion: 'পৰৱৰ্তী প্ৰশ্ন', previous: 'পূৰ্বৱৰ্তী', retryGame: 'পুনৰ খেলক', finishSession: 'অধিৱেশন শেষ কৰক', correct: 'শুদ্ধ', incorrect: 'অশুদ্ধ', questionOf: 'প্ৰশ্ন {n} / {total}', averageReaction: 'গড় প্ৰতিক্ৰিয়াৰ সময়', level1: 'স্তৰ ১', level2: 'স্তৰ ২', level3: 'স্তৰ ৩', level4: 'স্তৰ ৪', level5: 'স্তৰ ৫', savedOnDevice: 'এই ডিভাইচত সংৰক্ষিত।', hiddenCard: 'লুকোৱা কাৰ্ড', voiceAssistant: 'কণ্ঠ সহায়ক', settings: 'ছেটিংছ', language: 'ভাষা', voice: 'কণ্ঠ', sync: 'ছিংক', edit: 'সম্পাদনা', delete: 'মচক', familiarPeople: 'চিনাকি মানুহ', familiarPlaces: 'চিনাকি ঠাই', everydayObjects: 'দৈনন্দিন বস্তু', whoIsThis: 'এইজন কোন?', findMatchingPairs: 'মিল থকা যোৰ বিচাৰক', recognizeFamiliarPeople: 'চিনাকি মানুহ চিনাক্ত কৰক', recognizeRoutinePlaces: 'চিনাকি ঠাই চিনাক্ত কৰক', recognizeUsefulObjects: 'উপযোগী বস্তু চিনাক্ত কৰক', simpleSteps: 'আজিৰ সহজ কাম', completed: 'সম্পূৰ্ণ', notCompleted: 'সম্পূৰ্ণ হোৱা নাই', difficultyLabel: 'কঠিনতা', savedMessage: 'এই ডিভাইচত সংৰক্ষিত।',
+  },
+  bn: { activities: 'আজকের কার্যক্রম', start: 'শুরু করুন', nextQuestion: 'পরের প্রশ্ন', previous: 'আগের', retryGame: 'আবার খেলুন', finishSession: 'সেশন শেষ করুন', correct: 'সঠিক', incorrect: 'ভুল', questionOf: 'প্রশ্ন {n} / {total}', averageReaction: 'গড় প্রতিক্রিয়ার সময়', level1: 'স্তর ১', level2: 'স্তর ২', level3: 'স্তর ৩', level4: 'স্তর ৪', level5: 'স্তর ৫', savedOnDevice: 'এই ডিভাইসে সংরক্ষিত।', hiddenCard: 'লুকানো কার্ড', voiceAssistant: 'ভয়েস সহায়ক', settings: 'সেটিংস', language: 'ভাষা', voice: 'কণ্ঠ', sync: 'সিঙ্ক', edit: 'সম্পাদনা', delete: 'মুছুন', familiarPeople: 'পরিচিত মানুষ', familiarPlaces: 'পরিচিত স্থান', everydayObjects: 'দৈনন্দিন বস্তু', whoIsThis: 'এ কে?', findMatchingPairs: 'মিল জোড়া খুঁজুন', recognizeFamiliarPeople: 'পরিচিত মানুষ চিনুন', recognizeRoutinePlaces: 'পরিচিত স্থান চিনুন', recognizeUsefulObjects: 'প্রয়োজনীয় বস্তু চিনুন', simpleSteps: 'আজকের সহজ ধাপ', completed: 'সম্পন্ন', notCompleted: 'অসম্পন্ন', difficultyLabel: 'কঠিনতা', savedMessage: 'এই ডিভাইসে সংরক্ষিত।' },
+  brx: { activities: 'दिनैनि जाथाइ', start: 'जागाय', nextQuestion: 'उननि सोंलु', previous: 'सिगांनि', retryGame: 'फिन खेल', finishSession: 'सेसन जोब', correct: 'थिक', incorrect: 'थिक नङा', questionOf: 'सोंलु {n} / {total}', averageReaction: 'गासै फिननाय सम', level1: 'लेभेल 1', level2: 'लेभेल 2', level3: 'लेभेल 3', level4: 'लेभेल 4', level5: 'लेभेल 5', savedOnDevice: 'बे डिभाइसआव थिना', hiddenCard: 'दोनखोमना कार्ड', voiceAssistant: 'राव सहायक', settings: 'सेटिं', language: 'राव', voice: 'राव', sync: 'सिंक', edit: 'सुदार', delete: 'खोमोर', familiarPeople: 'मिथिनाय मानो', familiarPlaces: 'मिथिनाय जायगा', everydayObjects: 'दिनैनि जाथाइ', whoIsThis: 'बेयो सो?', findMatchingPairs: 'मिलनाय जोर खौ नागिर', recognizeFamiliarPeople: 'मिथिनाय मानो खौ सिनाय', recognizeRoutinePlaces: 'मिथिनाय जायगा खौ सिनाय', recognizeUsefulObjects: 'जेरै जाथाइ खौ सिनाय', simpleSteps: 'दिनैनि सरल खामानि', completed: 'जोबनाय', notCompleted: 'जोबाखै', difficultyLabel: 'खमासिनाय', savedMessage: 'बे डिभाइसआव थिना' },
+  mni: { activities: 'ꯅꯨꯃꯤꯠꯀꯤ ꯊꯧꯔꯥꯡ', start: 'ꯍꯧꯖꯤꯜꯂꯨ', nextQuestion: 'ꯑꯅꯧꯕ ꯋꯥꯍꯪ', previous: 'ꯃꯃꯥꯡꯒꯤ', retryGame: 'ꯑꯃꯨꯛ ꯁꯤꯟꯗꯣꯛꯂꯨ', finishSession: 'ꯁꯦꯁꯟ ꯂꯣꯏꯁꯤꯟꯕ', correct: 'ꯆꯨꯝ', incorrect: 'ꯆꯨꯝꯗꯦ', questionOf: 'ꯋꯥꯍꯪ {n} / {total}', averageReaction: 'ꯊꯥꯒꯠꯄꯒꯤ ꯃꯇꯝ', level1: 'ꯂꯦꯕꯦꯜ 1', level2: 'ꯂꯦꯕꯦꯜ 2', level3: 'ꯂꯦꯕꯦꯜ 3', level4: 'ꯂꯦꯕꯦꯜ 4', level5: 'ꯂꯦꯕꯦꯜ 5', savedOnDevice: 'ꯃꯁꯤꯒꯤ ꯗꯤꯕꯥꯏꯁꯇ ꯁꯦꯕ ꯇꯧꯔꯦ', hiddenCard: 'ꯂꯨꯛꯄ ꯀꯥꯔꯠ', voiceAssistant: 'ꯑꯣꯏꯁ ꯑꯁꯤꯁꯇꯦꯟꯠ', settings: 'ꯁꯦꯇꯤꯡ', language: 'ꯂꯣꯟ', voice: 'ꯑꯣꯏꯁ', sync: 'ꯁꯤꯡꯀ꯭', edit: 'ꯁꯦꯝꯒꯠꯄ', delete: 'ꯃꯨꯠꯄ', familiarPeople: 'ꯃꯤꯁꯤꯡ', familiarPlaces: 'ꯃꯤꯇꯤꯡ ꯃꯐꯝ', everydayObjects: 'ꯅꯨꯃꯤꯠꯀꯤ ꯊꯧꯔꯥꯡ', whoIsThis: 'ꯃꯁꯤ ꯀꯔꯤꯅꯣ?', findMatchingPairs: 'ꯃꯥꯟꯅꯕ ꯀꯥꯔꯠ ꯐꯪꯕ', recognizeFamiliarPeople: 'ꯃꯤꯁꯤꯡ ꯁꯤꯅꯕ', recognizeRoutinePlaces: 'ꯃꯐꯝ ꯁꯤꯅꯕ', recognizeUsefulObjects: 'ꯊꯧꯔꯥꯡ ꯁꯤꯅꯕ', simpleSteps: 'ꯅꯨꯃꯤꯠꯀꯤ ꯑꯃꯥꯁꯨ ꯄꯔꯤꯗꯣ', completed: 'ꯂꯣꯏꯔꯦ', notCompleted: 'ꯂꯣꯏꯗꯦ', difficultyLabel: 'ꯁꯣꯡꯗꯣꯛꯄ', savedMessage: 'ꯃꯁꯤꯒꯤ ꯗꯤꯕꯥꯏꯁꯇ ꯁꯦꯕ ꯇꯧꯔꯦ' },
+  kha: { activities: 'Ki kam jong ka sngi', start: 'Sdang', nextQuestion: 'Ka jingkylli kaba bud', previous: 'Kaba mynshwa', retryGame: 'Pyrshang biang', finishSession: 'Pyndep ia ka session', correct: 'Kumba dei', incorrect: 'Kumta ym dei', questionOf: 'Ka jingkylli {n} / {total}', averageReaction: 'Ka por jubab kaba pdeng', level1: 'Kyrdan 1', level2: 'Kyrdan 2', level3: 'Kyrdan 3', level4: 'Kyrdan 4', level5: 'Kyrdan 5', savedOnDevice: 'La buh ha kane ka device.', hiddenCard: 'Ka card ba rieh', voiceAssistant: 'Ka jingïarap ka sur', settings: 'Settings', language: 'Ka ktien', voice: 'Ka sur', sync: 'Sync', edit: 'Pynbeit', delete: 'Sait', familiarPeople: 'Ki briew ba ithuh', familiarPlaces: 'Ki jaka ba ithuh', everydayObjects: 'Ki jingthoh sngi', whoIsThis: 'Uei kane?', findMatchingPairs: 'Pynithuh ia ki ar tylli', recognizeFamiliarPeople: 'Pynithuh ia ki briew ba ithuh', recognizeRoutinePlaces: 'Pynithuh ia ki jaka ba ju leit', recognizeUsefulObjects: 'Pynithuh ia ki jingpyndonkam', simpleSteps: 'Ki sienjam ba suk mynta ka sngi', completed: 'La pyndep', notCompleted: 'Ym pat pyndep', difficultyLabel: 'Ka jingeh', savedMessage: 'La buh ha kane ka device.' },
+  grt: { activities: 'Salni kamrang', start: 'A·bacheng', nextQuestion: 'Gitalni sing·an', previous: 'Skangni', retryGame: 'Pil·e dakchak', finishSession: 'Session bon·chak', correct: 'Namen', incorrect: 'Namen ong·ja', questionOf: 'Sing·an {n} / {total}', averageReaction: 'Rong·an somni', level1: 'Level 1', level2: 'Level 2', level3: 'Level 3', level4: 'Level 4', level5: 'Level 5', savedOnDevice: 'Ia device-o don·chak.', hiddenCard: 'Don·gimin card', voiceAssistant: 'Ring·ani dakchak', settings: 'Setting', language: 'Ku·sik', voice: 'Ring·ani', sync: 'Sync', edit: 'Song·na', delete: 'Mitchang', familiarPeople: 'Minggipa mandera', familiarPlaces: 'Minggipa biap', everydayObjects: 'Salni bostu', whoIsThis: 'Ia sawa?', findMatchingPairs: 'Match dakgipa pairko nika', recognizeFamiliarPeople: 'Minggipa mandeko chana', recognizeRoutinePlaces: 'Minggipa biapko chana', recognizeUsefulObjects: 'Kamni bostuko chana', simpleSteps: 'Da·alni altugipa kam', completed: 'Matchotaha', notCompleted: 'Matchotkuja', difficultyLabel: 'Bilakbegipa', savedMessage: 'Ia device-o don·chak' },
+  lus: { activities: 'Tuni hunrawlh', start: 'Tan', nextQuestion: 'Zawhna dawta', previous: 'A hmasa', retryGame: 'Sawi leh tawh', finishSession: 'Session zawh', correct: 'A dik', incorrect: 'A dik lo', questionOf: 'Zawhna {n} / {total}', averageReaction: 'Chhanna hun lai', level1: 'Level 1', level2: 'Level 2', level3: 'Level 3', level4: 'Level 4', level5: 'Level 5', savedOnDevice: 'He device-ah dah a ni.', hiddenCard: 'Card thup', voiceAssistant: 'Aw chhawmdawl', settings: 'Settings', language: 'Tawng', voice: 'Aw', sync: 'Sync', edit: 'Thlak', delete: 'Paih', familiarPeople: 'Mi hriat', familiarPlaces: 'Hmun hriat', everydayObjects: 'Thil tinreng', whoIsThis: 'Tu nge hei?', findMatchingPairs: 'Pair inang zawng', recognizeFamiliarPeople: 'Mi hriat hriatna', recognizeRoutinePlaces: 'Hmun hriat hriatna', recognizeUsefulObjects: 'Thil tangkai hriatna', simpleSteps: 'Vawiina tih tur awlsam', completed: 'Zawh', notCompleted: 'Zawh lo', difficultyLabel: 'A harsa zawng', savedMessage: 'He device-ah dah a ni.' },
+  trp: { activities: 'सान्द्रा खामानि', start: 'हौखाग्रा', nextQuestion: 'उननि सोंलु', previous: 'सिगांनि', retryGame: 'फिन खेल', finishSession: 'सेसन जोब', correct: 'थिक', incorrect: 'थिक नङा', questionOf: 'सोंलु {n} / {total}', averageReaction: 'गासै फिननाय सम', level1: 'लेभेल 1', level2: 'लेभेल 2', level3: 'लेभेल 3', level4: 'लेभेल 4', level5: 'लेभेल 5', savedOnDevice: 'बे डिभाइसआव थिना', hiddenCard: 'दोनखोमना कार्ड', voiceAssistant: 'राव सहायक', settings: 'सेटिं', language: 'राव', voice: 'राव', sync: 'सिंक', edit: 'सुदार', delete: 'खोमोर', familiarPeople: 'मिथिनाय मानो', familiarPlaces: 'मिथिनाय जायगा', everydayObjects: 'दिनैनि जाथाइ', whoIsThis: 'बेयो सो?', findMatchingPairs: 'मिलनाय जोर खौ नागिर', recognizeFamiliarPeople: 'मिथिनाय मानो खौ सिनाय', recognizeRoutinePlaces: 'मिथिनाय जायगा खौ सिनाय', recognizeUsefulObjects: 'जेरै जाथाइ खौ सिनाय', simpleSteps: 'सान्द्रा सरल खामानि', completed: 'जोबनाय', notCompleted: 'जोबाखै', difficultyLabel: 'खमासिनाय', savedMessage: 'बे डिभाइसआव थिना' },
+  ne: { activities: 'आजका गतिविधिहरू', start: 'सुरु गर्नुहोस्', nextQuestion: 'अर्को प्रश्न', previous: 'अघिल्लो', retryGame: 'फेरि खेल्नुहोस्', finishSession: 'सत्र समाप्त गर्नुहोस्', correct: 'सही', incorrect: 'गलत', questionOf: 'प्रश्न {n} / {total}', averageReaction: 'औसत प्रतिक्रिया समय', level1: 'स्तर १', level2: 'स्तर २', level3: 'स्तर ३', level4: 'स्तर ४', level5: 'स्तर ५', savedOnDevice: 'यस उपकरणमा सुरक्षित।', hiddenCard: 'लुकेको कार्ड', voiceAssistant: 'आवाज सहायक', settings: 'सेटिङ', language: 'भाषा', voice: 'आवाज', sync: 'सिङ्क', edit: 'सम्पादन', delete: 'मेट्नुहोस्', familiarPeople: 'परिचित मानिसहरू', familiarPlaces: 'परिचित ठाउँहरू', everydayObjects: 'दैनिक वस्तुहरू', whoIsThis: 'यो को हो?', findMatchingPairs: 'मिल्ने जोडी खोज्नुहोस्', recognizeFamiliarPeople: 'परिचित मानिस चिन्नुहोस्', recognizeRoutinePlaces: 'परिचित ठाउँ चिन्नुहोस्', recognizeUsefulObjects: 'उपयोगी वस्तु चिन्नुहोस्', simpleSteps: 'आजका सरल चरणहरू', completed: 'पूरा भयो', notCompleted: 'पूरा भएको छैन', difficultyLabel: 'कठिनाइ', savedMessage: 'यस उपकरणमा सुरक्षित।' },
+}
+
+const COMMON_REQUIRED_TRANSLATIONS = {
+  bn: { loginTitle: 'বিদ্যমান ব্যবহারকারীর লগইন', createAccount: 'অ্যাকাউন্ট তৈরি করুন', dashboard: 'ড্যাশবোর্ড', patient: 'রোগী', caregiver: 'পরিচর্যাকারী', doctor: 'চিকিৎসক', memoryMatch: 'মেমরি ম্যাচ', storyRecall: 'গল্প / স্মরণ', dailyRoutine: 'দৈনন্দিন রুটিন', score: 'স্কোর', accuracy: 'নির্ভুলতা', reaction: 'প্রতিক্রিয়ার সময়', difficulty: 'কঠিনতা', reminders: 'অনুস্মারক', save: 'সংরক্ষণ', cancel: 'বাতিল', back: 'ফিরে যান', onlineTitle: 'অনলাইন', offlineTitle: 'অফলাইন মোড', voiceLanguage: 'কণ্ঠের ভাষা', textLanguage: 'লেখার ভাষা' },
+  brx: { loginTitle: 'जुबुनि बाहागो लगिन', createAccount: 'अकाउन्ट साज', dashboard: 'डेशबर्ड', patient: 'रोगी', caregiver: 'जिउ जोगायगिरि', doctor: 'डाक्टर', memoryMatch: 'मेमरि माच', storyRecall: 'सोरजिनाय / फिन साननाय', dailyRoutine: 'सान्द्रा खामानि', score: 'स्कर', accuracy: 'गोरोब', reaction: 'फिननाय सम', difficulty: 'खमासिनाय', reminders: 'स्मारक', save: 'थिनाय', cancel: 'बातिल', back: 'उनथिं', onlineTitle: 'अनलाइन', offlineTitle: 'अफलाइन मोड', voiceLanguage: 'रावनि राव', textLanguage: 'लिखानाय राव' },
+  mni: { loginTitle: 'ꯃꯃꯥꯡ ꯂꯩꯔꯤꯕꯒꯤ ꯂꯣꯒꯤꯟ', createAccount: 'ꯑꯀꯥꯎꯟꯠ ꯁꯦꯝꯒꯠꯄ', dashboard: 'ꯗꯦꯁꯕꯣꯔꯗ', patient: 'ꯂꯩꯕꯥꯛ ꯃꯤ', caregiver: 'ꯃꯤ ꯁꯤꯡꯁꯥꯔꯤ', doctor: 'ꯗꯣꯛꯇꯔ', memoryMatch: 'ꯃꯦꯃꯣꯔꯤ ꯃꯦꯆ', storyRecall: 'ꯋꯥꯍꯪ / ꯅꯤꯡꯁꯤꯡꯕ', dailyRoutine: 'ꯅꯨꯃꯤꯠꯀꯤ ꯊꯧꯔꯥꯡ', score: 'ꯁꯀꯣꯔ', accuracy: 'ꯆꯨꯝꯅꯕ', reaction: 'ꯊꯥꯒꯠꯄꯒꯤ ꯃꯇꯝ', difficulty: 'ꯁꯣꯡꯗꯣꯛꯄ', reminders: 'ꯅꯤꯡꯊꯤꯅꯕ', save: 'ꯁꯦꯕ', cancel: 'ꯀꯦꯟꯁꯦꯜ', back: 'ꯃꯃꯥꯡ', onlineTitle: 'ꯑꯣꯅꯂꯥꯏꯟ', offlineTitle: 'ꯑꯣꯐꯂꯥꯏꯟ ꯃꯣꯗ', voiceLanguage: 'ꯑꯣꯏꯁꯀꯤ ꯂꯣꯟ', textLanguage: 'ꯄꯔꯤꯕꯒꯤ ꯂꯣꯟ' },
+  kha: { loginTitle: 'Ka jingrung jong u nongpyndonkam', createAccount: 'Pynlong account', dashboard: 'Dashboard', patient: 'U nongpang', caregiver: 'Nongsumar', doctor: 'Doktor', memoryMatch: 'Memory Match', storyRecall: 'Ka khana / kynmaw', dailyRoutine: 'Ka rukom sngi', score: 'Score', accuracy: 'Ka jingbeit', reaction: 'Ka por jubab', difficulty: 'Ka jingeh', reminders: 'Ki jingpynkynmaw', save: 'Buh', cancel: 'Pynduh', back: 'Phai dien', onlineTitle: 'Online', offlineTitle: 'Offline', voiceLanguage: 'Ka ktien ka sur', textLanguage: 'Ka ktien jingthoh' },
+  grt: { loginTitle: 'Minggipa user login', createAccount: 'Account dakchak', dashboard: 'Dashboard', patient: 'Rogi', caregiver: 'Rakkigipa', doctor: 'Doctor', memoryMatch: 'Memory Match', storyRecall: 'Salsa / gisik ra·ani', dailyRoutine: 'Salni kamrang', score: 'Score', accuracy: 'Namen ong·ani', reaction: 'Rong·ani som', difficulty: 'Bilakbegipa', reminders: 'Ningsengani', save: 'Don·chak', cancel: 'Cancel', back: 'Uamangchi', onlineTitle: 'Online', offlineTitle: 'Offline', voiceLanguage: 'Ring·ani ku·sik', textLanguage: 'Sianiko ku·sik' },
+  lus: { loginTitle: 'User login', createAccount: 'Account siam', dashboard: 'Dashboard', patient: 'Patient', caregiver: 'Enkawltu', doctor: 'Doctor', memoryMatch: 'Memory Match', storyRecall: 'Thawnthu / hriatna', dailyRoutine: 'Ni tin tih dan', score: 'Score', accuracy: 'Dikna', reaction: 'Chhanna hun', difficulty: 'A harsa zawng', reminders: 'Hriattirna', save: 'Dah', cancel: 'Phatsan', back: 'Kir leh', onlineTitle: 'Online', offlineTitle: 'Offline', voiceLanguage: 'Aw tawng', textLanguage: 'Thuthlung tawng' },
+  trp: { loginTitle: 'जुबुनि बाहागो लगिन', createAccount: 'अकाउन्ट साज', dashboard: 'डेशबर्ड', patient: 'रोगी', caregiver: 'जिउ जोगायगिरि', doctor: 'डाक्टर', memoryMatch: 'मेमरि माच', storyRecall: 'सोरजिनाय / फिन साननाय', dailyRoutine: 'सान्द्रा खामानि', score: 'स्कर', accuracy: 'गोरोब', reaction: 'फिननाय सम', difficulty: 'खमासिनाय', reminders: 'स्मारक', save: 'थिनाय', cancel: 'बातिल', back: 'उनथिं', onlineTitle: 'अनलाइन', offlineTitle: 'अफलाइन मोड', voiceLanguage: 'रावनि राव', textLanguage: 'लिखानाय राव' },
+  ne: { loginTitle: 'पहिलेको प्रयोगकर्ता लगइन', createAccount: 'खाता बनाउनुहोस्', dashboard: 'ड्यासबोर्ड', patient: 'बिरामी', caregiver: 'हेरचाहकर्ता', doctor: 'डाक्टर', memoryMatch: 'स्मृति मिलान', storyRecall: 'कथा / सम्झना', dailyRoutine: 'दैनिक दिनचर्या', score: 'स्कोर', accuracy: 'शुद्धता', reaction: 'प्रतिक्रिया समय', difficulty: 'कठिनाइ', reminders: 'सम्झना', save: 'सुरक्षित गर्नुहोस्', cancel: 'रद्द गर्नुहोस्', back: 'पछाडि', onlineTitle: 'अनलाइन', offlineTitle: 'अफलाइन मोड', voiceLanguage: 'आवाजको भाषा', textLanguage: 'लेखिएको भाषा' },
+}
+
+const GAME_TRANSLATIONS = {
+  bn: { gameIntro: 'দুটি কার্ড ট্যাপ করুন। মিল জোড়া খুঁজুন।', currentCap: 'বর্তমান সীমা', matches: 'মিল', tries: 'চেষ্টা', playAgain: 'আবার খেলুন', backDashboard: 'ড্যাশবোর্ডে ফিরে যান', voiceUnavailable: 'এই ভাষার কণ্ঠ এই ডিভাইসে নেই।', storyHint: 'শুনুন, তারপর দুটি সহজ প্রশ্নের উত্তর দিন।', progress: 'আজকের অগ্রগতি', sessionSummary: 'সেশনের সারাংশ', games: 'খেলা', lastScore: 'শেষ স্কোর' },
+  brx: { gameIntro: 'बिदिन कार्ड टिप। मिलनाय जोर नागिर।', currentCap: 'दानियानि सीमा', matches: 'मिल', tries: 'नाजिरनाय', playAgain: 'फिन खेल', backDashboard: 'डेशबर्डआव उनथिं', voiceUnavailable: 'बे रावनि राव बे डिभाइसआव गैया।', storyHint: 'खोनासो, उनाव मोनसे सरल सोंलुनि फिन हो।', progress: 'दिनैनि जाथाइ', sessionSummary: 'सेसन सारांस', games: 'खेला', lastScore: 'जोबथा स्कर' },
+  mni: { gameIntro: 'ꯀꯥꯔꯠ ꯑꯅꯤ ꯇꯥꯞꯄꯨ। ꯃꯥꯟꯅꯕ ꯑꯅꯤ ꯐꯪꯕꯤꯌꯨ।', currentCap: 'ꯃꯃꯥꯡ ꯁꯤꯃꯥ', matches: 'ꯃꯥꯟꯅꯕ', tries: 'ꯍꯣꯠꯅꯕ', playAgain: 'ꯑꯃꯨꯛ ꯁꯤꯟꯗꯣꯛꯂꯨ', backDashboard: 'ꯗꯦꯁꯕꯣꯔꯗꯗꯥ ꯃꯃꯥꯡ', voiceUnavailable: 'ꯃꯁꯤꯒꯤ ꯂꯣꯟꯒꯤ ꯑꯣꯏꯁ ꯗꯤꯕꯥꯏꯁꯇ ꯂꯩꯇꯦ।', storyHint: 'ꯈꯣꯅꯁꯤꯜꯂꯨ, ꯑꯃꯁꯨꯡ ꯋꯥꯍꯪ ꯑꯅꯤꯒꯤ ꯐꯤꯕꯥ ꯄꯤꯌꯨ।', progress: 'ꯅꯨꯃꯤꯠꯀꯤ ꯊꯧꯔꯥꯡ', sessionSummary: 'ꯁꯦꯁꯟ ꯁꯥꯔꯥꯡ', games: 'ꯁꯤꯟꯗꯣꯛꯄ', lastScore: 'ꯑꯔꯣꯏꯕꯥ ꯁꯀꯣꯔ' },
+  kha: { gameIntro: 'Tied ar tylli ki card. Pynithuh ia ki pair.', currentCap: 'Ka pud mynta', matches: 'Ki match', tries: 'Ki pyrshang', playAgain: 'Pyrshang biang', backDashboard: 'Phai sha dashboard', voiceUnavailable: 'Ka sur jong kane ka ktien kam don ha kane ka device.', storyHint: 'Sngap, nangta jubab ia ki ar jingkylli.', progress: 'Ka jingiaid mynta ka sngi', sessionSummary: 'Ka jingpynkut session', games: 'Ki jingialehkai', lastScore: 'Score ba khatduh' },
+  grt: { gameIntro: 'Card minggni dakchak. Match pairko nika.', currentCap: 'Da·alni sima', matches: 'Match', tries: 'Dakchak', playAgain: 'Pil·e dakchak', backDashboard: 'Dashboard-o re·ang', voiceUnavailable: 'Ia ku·sikni ring·ani ia device-o dongja.', storyHint: 'Knatcheng, unon gital sing·anrangko aganchak.', progress: 'Da·alni kamrang', sessionSummary: 'Sessionni agangani', games: 'Game', lastScore: 'Bon·ani score' },
+  lus: { gameIntro: 'Card pahnih thawh rawh. Pair inang zawng rawh.', currentCap: 'Tunah chin', matches: 'Inang', tries: 'Sawi', playAgain: 'Sawi leh tawh', backDashboard: 'Dashboard-ah kir', voiceUnavailable: 'He tawng aw hi device-ah a awm lo.', storyHint: 'Ngai rawh, zawhna pahnih chhanna pe rawh.', progress: 'Tuni hmalakna', sessionSummary: 'Session khar', games: 'Game', lastScore: 'Score hnuhnung' },
+  trp: { gameIntro: 'बिदिन कार्ड टिप। मिलनाय जोर नागिर।', currentCap: 'दानियानि सीमा', matches: 'मिल', tries: 'नाजिरनाय', playAgain: 'फिन खेल', backDashboard: 'डेशबर्डआव उनथिं', voiceUnavailable: 'बे रावनि राव बे डिभाइसआव गैया।', storyHint: 'खोनासो, उनाव मोनसे सरल सोंलुनि फिन हो।', progress: 'दिनैनि जाथाइ', sessionSummary: 'सेसन सारांस', games: 'खेला', lastScore: 'जोबथा स्कर' },
+  ne: { gameIntro: 'दुई कार्ड छान्नुहोस्। मिल्ने जोडी खोज्नुहोस्।', currentCap: 'हालको सीमा', matches: 'मिलान', tries: 'प्रयास', playAgain: 'फेरि खेल्नुहोस्', backDashboard: 'ड्यासबोर्डमा फर्कनुहोस्', voiceUnavailable: 'यस भाषाको आवाज यस उपकरणमा उपलब्ध छैन।', storyHint: 'सुन्नुहोस्, त्यसपछि दुई सरल प्रश्नको उत्तर दिनुहोस्।', progress: 'आजको प्रगति', sessionSummary: 'सत्रको सारांश', games: 'खेल', lastScore: 'अन्तिम स्कोर' },
+}
+
+const PANEL_TRANSLATIONS = {
+  en: { languageAndVoice: 'Language & Voice', textLanguageSection: 'Text Language', voiceLanguageSection: 'Voice Language', voiceStatus: 'Voice Status', deviceVoice: 'Device Voice', browserVoice: 'Browser Voice', offlineCache: 'Offline Cache', availableOnline: 'Available on device', notConfigured: 'Not configured', unsupportedLanguage: 'Unsupported language', notCached: 'Not cached', available: 'Available', unavailable: 'Unavailable on this device', selected: 'Selected' },
+  hi: { languageAndVoice: 'भाषा और आवाज़', textLanguageSection: 'टेक्स्ट भाषा', voiceLanguageSection: 'आवाज़ की भाषा', voiceStatus: 'आवाज़ स्थिति', deviceVoice: 'डिवाइस आवाज़', browserVoice: 'ब्राउज़र आवाज़', offlineCache: 'ऑफ़लाइन कैश', availableOnline: 'ऑनलाइन उपलब्ध', notConfigured: 'कॉन्फ़िगर नहीं है', unsupportedLanguage: 'असमर्थित भाषा', notCached: 'कैश में नहीं', available: 'उपलब्ध', unavailable: 'इस डिवाइस पर उपलब्ध नहीं', selected: 'चयनित' },
+  as: { languageAndVoice: 'ভাষা আৰু কণ্ঠ', textLanguageSection: 'লিখিত ভাষা', voiceLanguageSection: 'কণ্ঠৰ ভাষা', voiceStatus: 'কণ্ঠৰ অৱস্থা', deviceVoice: 'ডিভাইচ কণ্ঠ', browserVoice: 'ব্ৰাউজাৰ কণ্ঠ', offlineCache: 'অফলাইন কেচ', availableOnline: 'অনলাইনত উপলব্ধ', notConfigured: 'বিন্যাস কৰা হোৱা নাই', unsupportedLanguage: 'অসমৰ্থিত ভাষা', notCached: 'কেচত নাই', available: 'উপলব্ধ', unavailable: 'এই ডিভাইচত উপলব্ধ নহয়', selected: 'নিৰ্বাচিত' },
+  bn: { languageAndVoice: 'ভাষা ও কণ্ঠ', textLanguageSection: 'লেখার ভাষা', voiceLanguageSection: 'কণ্ঠের ভাষা', voiceStatus: 'কণ্ঠের অবস্থা', deviceVoice: 'ডিভাইচ কণ্ঠ', browserVoice: 'ব্রাউজার কণ্ঠ', offlineCache: 'অফলাইন ক্যাশ', availableOnline: 'অনলাইনে উপলব্ধ', notConfigured: 'কনফিগার করা নেই', unsupportedLanguage: 'অসমর্থিত ভাষা', notCached: 'ক্যাশে নেই', available: 'উপলব্ধ', unavailable: 'এই ডিভাইসে নেই', selected: 'নির্বাচিত' },
+  brx: { languageAndVoice: 'राव आरो राव', textLanguageSection: 'लिखानाय राव', voiceLanguageSection: 'रावनि राव', voiceStatus: 'रावनि थाखो', available: 'मोनो', unavailable: 'बे डिभाइसआव गैया', selected: 'बाछायनाय' },
+  mni: { languageAndVoice: 'ꯂꯣꯟ ꯑꯃꯁꯨꯡ ꯑꯣꯏꯁ', textLanguageSection: 'ꯄꯔꯤꯕꯒꯤ ꯂꯣꯟ', voiceLanguageSection: 'ꯑꯣꯏꯁꯀꯤ ꯂꯣꯟ', voiceStatus: 'ꯑꯣꯏꯁꯀꯤ ꯐꯤꯕꯥ', available: 'ꯂꯩ', unavailable: 'ꯗꯤꯕꯥꯏꯁꯇ ꯂꯩꯇꯦ', selected: 'ꯈꯜꯂꯦ' },
+  kha: { languageAndVoice: 'Ka ktien bad ka sur', textLanguageSection: 'Ka ktien jingthoh', voiceLanguageSection: 'Ka ktien ka sur', voiceStatus: 'Ka jinglong ka sur', available: 'Don', unavailable: 'Kam don ha kane ka device', selected: 'La jied' },
+  grt: { languageAndVoice: 'Ku·sik aro ring·ani', textLanguageSection: 'Sianiko ku·sik', voiceLanguageSection: 'Ring·ani ku·sik', voiceStatus: 'Ring·ani obostha', available: 'Dong', unavailable: 'Ia device-o dongja', selected: 'Sia dakchak' },
+  lus: { languageAndVoice: 'Tawng leh aw', textLanguageSection: 'Thuthlung tawng', voiceLanguageSection: 'Aw tawng', voiceStatus: 'Aw dinhmun', available: 'A awm', unavailable: 'He device-ah a awm lo', selected: 'Thlan' },
+  trp: { languageAndVoice: 'राव आरो कंठ', textLanguageSection: 'लिखानाय राव', voiceLanguageSection: 'रावनि राव', voiceStatus: 'रावनि थाखो', available: 'मोनो', unavailable: 'बे डिभाइसआव गैया', selected: 'बाछायनाय' },
+  ne: { languageAndVoice: 'भाषा र आवाज', textLanguageSection: 'लेखिएको भाषा', voiceLanguageSection: 'आवाजको भाषा', voiceStatus: 'आवाजको अवस्था', available: 'उपलब्ध', unavailable: 'यस उपकरणमा उपलब्ध छैन', selected: 'छानिएको' },
+}
+
+Object.entries(CORE_TRANSLATIONS).forEach(([lang, values]) => {
+  STRINGS[lang] = { ...(STRINGS[lang] || STRINGS.en), ...values }
+})
+Object.entries(COMMON_REQUIRED_TRANSLATIONS).forEach(([lang, values]) => {
+  STRINGS[lang] = { ...(STRINGS[lang] || STRINGS.en), ...values }
+})
+Object.entries(GAME_TRANSLATIONS).forEach(([lang, values]) => {
+  STRINGS[lang] = { ...(STRINGS[lang] || STRINGS.en), ...values }
+})
+Object.entries(PANEL_TRANSLATIONS).forEach(([lang, values]) => {
+  STRINGS[lang] = { ...(STRINGS[lang] || STRINGS.en), ...values }
+})
 
 export function interpolate(template, vars = {}) {
   return String(template || '').replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '')
