@@ -35,6 +35,16 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = useCallback(async (identifier, password) => {
+    // Development demo accounts live in IndexedDB and must remain usable even
+    // when a local .env file also enables Firebase authentication.
+    if (import.meta.env.DEV) {
+      const localDemo = await verifyCredentials(identifier, password)
+      if (localDemo) {
+        await setAuthSession(localDemo)
+        setUser(localDemo)
+        return { ok: true, user: localDemo, path: rolePath(localDemo.role) }
+      }
+    }
     if (firebaseConfigured) {
       const account = await firebaseLogin(identifier, password)
       if (!account) return { ok: false }
