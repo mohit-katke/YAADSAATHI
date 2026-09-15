@@ -70,7 +70,6 @@ export default function PatientDashboard() {
             ['/patient/recognize/places', '🏠', t('familiarPlaces'), t('recognizeRoutinePlaces')],
             ['/patient/recognize/objects', '☕', t('everydayObjects'), t('recognizeUsefulObjects')],
             ['/patient/story', '📖', t('storyRecall'), t('storyHint')],
-            ['/patient/routine', '☀️', t('dailyRoutine'), t('simpleSteps')],
           ].map(([path, icon, title, description]) => (
             <button key={path} type="button" onClick={() => navigate(path)} className="rounded-2xl border-2 border-line bg-cream p-4 text-left">
               <span className="text-4xl" aria-hidden="true">{icon}</span>
