@@ -21,6 +21,10 @@ export default function Landing() {
   async function submit(event) {
     event.preventDefault()
     setError('')
+    if (!identifier.trim()) {
+      setError(t('loginError'))
+      return
+    }
     if (password.length < 8) {
       setError(t('loginError'))
       return
@@ -33,6 +37,8 @@ export default function Landing() {
         return
       }
       navigate(result.path)
+    } catch {
+      setError(t('loginError'))
     } finally {
       setBusy(false)
     }
