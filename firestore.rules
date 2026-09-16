@@ -1,52 +1,86 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    function clinicianProfileIs(uid, role) {
+      return exists(/databases/$(database)/documents/users/$(uid)) &&
+        get(/databases/$(database)/documents/users/$(uid)).data.role == role;
     }
-
-    function ownUser(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
     function acceptedCaregiver(patientId) {
       return signedIn() &&
         exists(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)) &&
-        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.role == "caregiver" &&
+        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.caregiverId == request.auth.uid &&
         get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.status == "accepted";
     }
-
     function acceptedDoctor(patientId) {
       return signedIn() &&
         exists(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)) &&
-        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.role == "doctor" &&
+        get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.doctorId == request.auth.uid &&
         get(/databases/$(database)/documents/relationships/$(request.auth.uid + "_" + patientId)).data.status == "accepted";
+    }
+    function canAccessPatient(patientId) {
+      return isSelf(patientId) || acceptedCaregiver(patientId) || acceptedDoctor(patientId);
     }
 
     match /users/{uid} {
-      allow create: if ownUser(uid);
-      allow read, update: if ownUser(uid);
+      allow create: if isSelf(uid) && request.resource.data.uid == request.auth.uid;
+      // Direct lookup enables a newly authenticated patient to validate a UID-based ID.
+      allow get: if signedIn();
+      allow list: if false;
+      allow update: if isSelf(uid) && request.resource.data.uid == resource.data.uid &&
+        request.resource.data.role == resource.data.role;
+      allow delete: if false;
     }
 
     match /relationships/{relationshipId} {
-      allow create: if signedIn() &&
-        (request.resource.data.caregiverId == request.auth.uid ||
-         request.resource.data.doctorId == request.auth.uid ||
-         request.resource.data.patientId == request.auth.uid);
-      allow read, update: if signedIn() &&
-        (resource.data.caregiverId == request.auth.uid ||
-         resource.data.doctorId == request.auth.uid ||
-         resource.data.patientId == request.auth.uid);
+      // A patient initiates a relationship only for themself with a verified clinician.
+      allow create: if signedIn() && request.resource.data.patientId == request.auth.uid &&
+        request.resource.data.status == "pending" &&
+        ((request.resource.data.role == "caregiver" &&
+          request.resource.data.caregiverId != null &&
+          relationshipId == request.resource.data.caregiverId + "_" + request.auth.uid &&
+          clinicianProfileIs(request.resource.data.caregiverId, "caregiver")) ||
+         (request.resource.data.role == "doctor" &&
+          request.resource.data.doctorId != null &&
+          relationshipId == request.resource.data.doctorId + "_" + request.auth.uid &&
+          clinicianProfileIs(request.resource.data.doctorId, "doctor")));
+      allow get, list: if signedIn() &&
+        (resource.data.patientId == request.auth.uid || resource.data.caregiverId == request.auth.uid || resource.data.doctorId == request.auth.uid);
+      // Only the named clinician can accept/reject; relationship identity is immutable.
+      allow update: if signedIn() && resource.data.status == "pending" &&
+        request.resource.data.patientId == resource.data.patientId &&
+        request.resource.data.caregiverId == resource.data.caregiverId &&
+        request.resource.data.doctorId == resource.data.doctorId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.status in ["accepted", "rejected"] &&
+        ((resource.data.role == "caregiver" && resource.data.caregiverId == request.auth.uid) ||
+         (resource.data.role == "doctor" && resource.data.doctorId == request.auth.uid));
+      allow delete: if false;
     }
 
-    match /{collection}/{recordId} {
-      allow read, write: if signedIn() &&
-        (request.resource.data.patientId == request.auth.uid ||
-         resource.data.patientId == request.auth.uid ||
-         acceptedCaregiver(request.resource.data.patientId) ||
-         acceptedCaregiver(resource.data.patientId) ||
-         acceptedDoctor(request.resource.data.patientId) ||
-         acceptedDoctor(resource.data.patientId));
+    match /gameSessions/{recordId} {
+      allow create: if signedIn() && request.resource.data.patientId == request.auth.uid;
+      allow read: if canAccessPatient(resource.data.patientId);
+      allow update: if canAccessPatient(resource.data.patientId) && request.resource.data.patientId == resource.data.patientId;
+      allow delete: if isSelf(resource.data.patientId);
+    }
+    match /dailyTasks/{recordId} {
+      allow create: if signedIn() && canAccessPatient(request.resource.data.patientId);
+      allow read: if canAccessPatient(resource.data.patientId);
+      allow update: if canAccessPatient(resource.data.patientId) && request.resource.data.patientId == resource.data.patientId;
+      allow delete: if canAccessPatient(resource.data.patientId);
+    }
+    match /reminders/{recordId} {
+      allow create: if signedIn() && canAccessPatient(request.resource.data.patientId);
+      allow read: if canAccessPatient(resource.data.patientId);
+      allow update: if canAccessPatient(resource.data.patientId) && request.resource.data.patientId == resource.data.patientId;
+      allow delete: if canAccessPatient(resource.data.patientId);
+    }
+    match /telemetry/{recordId} {
+      allow create: if signedIn() && request.resource.data.patientId == request.auth.uid;
+      allow read: if canAccessPatient(resource.data.patientId);
+      allow update, delete: if false;
     }
   }
 }

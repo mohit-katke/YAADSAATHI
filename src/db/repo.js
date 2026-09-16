@@ -1,7 +1,7 @@
 import { DEMO_IDS, db } from './database'
 import { hashPassword, looksLikeEmail, newId, normalizeEmail, normalizeMobile } from './crypto'
 import { normalizeDifficultyLevel } from '../data/mock'
-import { uploadFirestoreRecord } from '../firebase/client'
+import { firebaseConfigured, firebasePatientRecords, firebaseProfile, firebaseRelationships, uploadFirestoreRecord } from '../firebase/client'
 
 const AUTH_SESSION_ID = 'auth_current'
 const DEVICE_SETTINGS_ID = 'settings_device'
@@ -184,6 +184,7 @@ export async function registerUser(profile) {
     voiceLang: profile.voiceLang,
     relationship: profile.relationship || '',
     specialization: profile.specialization || '',
+    caregiverId: profile.caregiverId || null,
     linkedPatientId: null,
     createdAt: Date.now(),
   }
@@ -211,6 +212,14 @@ export async function registerUser(profile) {
     createdAt: Date.now(),
   })
   return user
+}
+
+// Firebase UIDs are the canonical IDs whenever Firebase is enabled. The local
+// database deliberately uses the same ID, which keeps offline queue records and
+// Firestore relationship document IDs stable across devices.
+export function relationshipId({ patientId, caregiverId, doctorId, role }) {
+  const clinicianId = role === 'doctor' ? doctorId : caregiverId
+  return `${clinicianId}_${patientId}`
 }
 
 export async function verifyCredentials(identifier, password) {
@@ -245,6 +254,24 @@ export async function clearAuthSession() {
 
 export async function getUser(id) {
   return db.users.get(id)
+}
+
+export async function cacheCloudUser(user) {
+  if (!user?.id) return null
+  const existing = await db.users.get(user.id)
+  const cached = {
+    ...existing,
+    ...user,
+    id: user.id,
+    firebaseUid: user.id,
+    // Firebase owns credential verification; no password material is cached
+    // for an account that was restored from a cloud sign-in.
+    passwordHash: existing?.passwordHash,
+    updatedAt: Date.now(),
+    createdAt: existing?.createdAt || Date.now(),
+  }
+  await db.users.put(cached)
+  return cached
 }
 
 export async function getLinkedPatient(user) {
@@ -629,6 +656,7 @@ export async function saveActivitySession({ userId, gameType, game, score = 0, a
   const sessionRow = {
     id: newId('sess'),
     userId,
+    patientId: userId,
     type: 'cognitive',
     game,
     gameType,
@@ -639,7 +667,10 @@ export async function saveActivitySession({ userId, gameType, game, score = 0, a
     difficulty,
     score,
     completed,
+    questions: Array.isArray(details) ? details : (details.questions || []),
     details,
+    startedAt: details.startedAt || createdAt,
+    completedAt: createdAt,
     createdAt,
   }
   await db.gameScores.add(scoreRow)
@@ -688,6 +719,9 @@ export async function enqueueSync(record) {
     payload: record,
     createdAt: Date.now(),
   })
+  // Send immediately when possible; queued rows are retained if offline or if
+  // Firebase has not been configured, and are retried on the next reconnect.
+  processSyncQueue().catch(() => {})
 }
 
 export async function processSyncQueue() {
@@ -716,10 +750,11 @@ export async function findUserById(id) {
 export async function createRelationship({ patientId, caregiverId, doctorId, role }) {
   const key = role === 'doctor' ? doctorId : caregiverId
   const field = role === 'doctor' ? 'doctorId' : 'caregiverId'
+  if (!patientId || !key || !['caregiver', 'doctor'].includes(role)) throw new Error('relationship-invalid')
   const existing = await db.relationships.where(field).equals(key).filter((row) => row.patientId === patientId).first()
   if (existing) return existing
   const row = {
-    id: `${key}_${patientId}`,
+    id: relationshipId({ patientId, caregiverId, doctorId, role }),
     patientId,
     caregiverId: role === 'caregiver' ? key : null,
     doctorId: role === 'doctor' ? key : null,
@@ -747,6 +782,8 @@ export async function updateRelationshipStatus(id, status, actor) {
   if (!row || !actor) return null
   const allowed = actor.role === 'caregiver' ? row.caregiverId === actor.id : actor.role === 'doctor' ? row.doctorId === actor.id : row.patientId === actor.id
   if (!allowed || !['accepted', 'rejected', 'pending'].includes(status)) return null
+  // Only the clinician named in the request can accept or reject it locally.
+  if (actor.role === 'patient' && status !== 'pending') return null
   const updated = { ...row, status, updatedAt: Date.now() }
   await db.relationships.put(updated)
   await enqueueSync({ kind: 'relationship', payload: updated })
@@ -769,6 +806,34 @@ export async function addDailyTask(patientId, createdBy, payload) {
   return row
 }
 
+export async function requestCareTeamMember(patient, clinicianId, role) {
+  const id = String(clinicianId || '').trim()
+  if (!patient?.id || !id || !['caregiver', 'doctor'].includes(role)) {
+    const error = new Error('clinician-not-found')
+    error.code = 'clinician-not-found'
+    throw error
+  }
+  let clinician = await db.users.get(id)
+  if (!clinician && firebaseConfigured) {
+    const profile = await firebaseProfile(id)
+    if (profile?.role === role) {
+      clinician = { id, firebaseUid: id, fullName: profile.name || '', role, email: profile.email || '', mobile: profile.phone || '', createdAt: profile.createdAt || Date.now() }
+      await db.users.put(clinician)
+    }
+  }
+  if (!clinician || clinician.role !== role) {
+    const error = new Error('clinician-not-found')
+    error.code = 'clinician-not-found'
+    throw error
+  }
+  return createRelationship({
+    patientId: patient.id,
+    caregiverId: role === 'caregiver' ? id : undefined,
+    doctorId: role === 'doctor' ? id : undefined,
+    role,
+  })
+}
+
 export async function listDailyTasks(patientId, date) {
   const rows = await db.dailyTasks.where('patientId').equals(patientId).toArray()
   return rows.filter((row) => !date || row.date === date).sort((a, b) => a.createdAt - b.createdAt)
@@ -781,6 +846,48 @@ export async function completeDailyTask(id, patientId, completed) {
   await db.dailyTasks.put(updated)
   await enqueueSync({ kind: 'dailyTask', payload: updated })
   return updated
+}
+
+async function upsertRemoteUser(uid) {
+  if (!uid || await db.users.get(uid)) return
+  const profile = await firebaseProfile(uid)
+  if (!profile) return
+  await db.users.put({
+    id: uid,
+    firebaseUid: uid,
+    fullName: profile.name || '',
+    age: Number(profile.age || 0),
+    mobile: profile.phone || '',
+    email: profile.email || '',
+    location: profile.location || '',
+    role: profile.role || '',
+    caregiverId: profile.caregiverId || null,
+    linkedPatientId: profile.linkedPatientId || null,
+    textLang: profile.textLanguage || 'en',
+    voiceLang: profile.voiceLanguage || 'en',
+    createdAt: profile.createdAt || Date.now(),
+    updatedAt: profile.updatedAt || Date.now(),
+  })
+}
+
+// Pull only records authorized for the signed-in user. Dexie remains the source
+// the UI reads from, allowing the same screens to work when later offline.
+export async function pullCloudData(user, patientId) {
+  if (!firebaseConfigured || !user?.id) return { pulled: 0 }
+  const relationships = await firebaseRelationships(user)
+  for (const row of relationships) {
+    await db.relationships.put({ ...row, id: row.id })
+    await upsertRemoteUser(row.patientId)
+  }
+  const targetPatientId = patientId || (user.role === 'patient' ? user.id : relationships.find((row) => row.status === 'accepted')?.patientId)
+  if (!targetPatientId) return { pulled: relationships.length }
+  const records = await firebasePatientRecords(targetPatientId)
+  await db.transaction('rw', db.sessions, db.dailyTasks, db.reminders, async () => {
+    await db.sessions.bulkPut(records.sessions.map((row) => ({ ...row, userId: row.userId || row.patientId, type: row.type || 'cognitive' })))
+    await db.dailyTasks.bulkPut(records.tasks)
+    await db.reminders.bulkPut(records.reminders.map((row) => ({ ...row, userId: row.userId || row.patientId })))
+  })
+  return { pulled: relationships.length + records.sessions.length + records.tasks.length + records.reminders.length }
 }
 export function rolePath(role) {
   if (role === 'caregiver') return '/caregiver'

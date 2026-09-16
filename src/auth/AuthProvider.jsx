@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { clearAuthSession, ensureSeeded, getAuthSession, processSyncQueue, registerUser, rolePath, setAuthSession, verifyCredentials } from '../db/repo'
-import { firebaseConfigured, firebaseLogin, firebaseLogout, firebaseProfile, firebaseRegister } from '../firebase/client'
+import { cacheCloudUser, clearAuthSession, ensureSeeded, getAuthSession, processSyncQueue, pullCloudData, registerUser, rolePath, setAuthSession, verifyCredentials } from '../db/repo'
+import { firebaseConfigured, firebaseLogin, firebaseLogout, firebaseRegister } from '../firebase/client'
 
 const AuthContext = createContext(null)
 
@@ -16,6 +16,7 @@ export function AuthProvider({ children }) {
         const auth = await getAuthSession()
         if (!cancelled) setUser(auth?.user || null)
         processSyncQueue().catch(() => {})
+        if (auth?.user) pullCloudData(auth.user).catch(() => {})
       } catch {
         if (!cancelled) setUser(null)
       } finally {
@@ -69,10 +70,13 @@ export function AuthProvider({ children }) {
         voiceLang: profile.voiceLanguage || 'en',
         relationship: profile.relationship || '',
         specialization: profile.specialization || '',
-        linkedPatientId: profile.linkedPatientId || null,
+        caregiverId: profile.caregiverId || null,
+        linkedPatientId: null,
       }
+      await cacheCloudUser(user)
       await setAuthSession(user)
       setUser(user)
+      pullCloudData(user).catch(() => {})
       return { ok: true, user, path: rolePath(user.role) }
     }
     const found = await verifyCredentials(identifier, password)
@@ -85,14 +89,6 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (profile) => {
     let account = null
     if (firebaseConfigured) {
-      if (profile.role === 'patient') {
-        const caregiver = await firebaseProfile(profile.caregiverId)
-        if (!caregiver || caregiver.role !== 'caregiver') {
-          const error = new Error('caregiver-not-found')
-          error.code = 'caregiver-not-found'
-          throw error
-        }
-      }
       account = await firebaseRegister(profile)
       if (!account) return { ok: false }
     }

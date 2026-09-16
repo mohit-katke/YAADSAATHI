@@ -110,3 +110,26 @@ export const voiceEngine = {
   isVoiceAvailable,
   subscribeToVoiceChanges,
 }
+
+export function startSpeechRecognition({ lang = 'en', onResult, onError, onEnd } = {}) {
+  if (typeof window === 'undefined') return { ok: false, reason: 'unsupported', stop: () => {} }
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+  if (!Recognition) return { ok: false, reason: 'unsupported', stop: () => {} }
+  const recognition = new Recognition()
+  recognition.lang = (LANG_TO_BCP47[lang] || LANG_TO_BCP47.en)[0]
+  recognition.interimResults = false
+  recognition.maxAlternatives = 3
+  recognition.onresult = (event) => {
+    const alternatives = Array.from(event.results?.[0] || []).map((item) => item.transcript)
+    onResult?.(alternatives)
+  }
+  recognition.onerror = (event) => onError?.(event.error || 'recognition-error')
+  recognition.onend = () => onEnd?.()
+  try {
+    recognition.start()
+    return { ok: true, stop: () => recognition.stop() }
+  } catch (error) {
+    onError?.(error?.message || 'recognition-error')
+    return { ok: false, reason: 'start-failed', stop: () => {} }
+  }
+}

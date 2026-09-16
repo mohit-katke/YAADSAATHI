@@ -12,7 +12,7 @@ import RecognitionGame from './pages/RecognitionGame'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import { useAuth } from './auth/AuthProvider'
 
-function RequireSession({ children }) {
+function RequireSession({ children, role }) {
   const { user, ready } = useAuth()
   if (!ready) {
     return (
@@ -22,6 +22,7 @@ function RequireSession({ children }) {
     )
   }
   if (!user) return <Navigate to="/" replace />
+  if (role && user.role !== role) return <Navigate to={user.role === 'caregiver' ? '/caregiver' : user.role === 'doctor' ? '/doctor' : '/patient'} replace />
   return children
 }
 
@@ -43,7 +44,7 @@ export default function App() {
           path="/patient"
           element={
             <RequireSession>
-              <PatientDashboard />
+              <RequireSession role="patient"><PatientDashboard /></RequireSession>
             </RequireSession>
           }
         />
@@ -51,7 +52,7 @@ export default function App() {
           path="/patient/game"
           element={
             <RequireSession>
-              <MemoryGame />
+              <RequireSession role="patient"><MemoryGame /></RequireSession>
             </RequireSession>
           }
         />
@@ -59,16 +60,16 @@ export default function App() {
           path="/patient/story"
           element={
             <RequireSession>
-              <StoryRecall />
+              <RequireSession role="patient"><StoryRecall /></RequireSession>
             </RequireSession>
           }
         />
-        <Route path="/patient/recognize/:kind" element={<RequireSession><RecognitionGame /></RequireSession>} />
+        <Route path="/patient/recognize/:kind" element={<RequireSession role="patient"><RecognitionGame /></RequireSession>} />
         <Route
           path="/patient/voice"
           element={
             <RequireSession>
-              <VoiceAssist />
+              <RequireSession role="patient"><VoiceAssist /></RequireSession>
             </RequireSession>
           }
         />
@@ -76,7 +77,7 @@ export default function App() {
           path="/caregiver"
           element={
             <RequireSession>
-              <CaregiverDashboard />
+              <RequireSession role="caregiver"><CaregiverDashboard /></RequireSession>
             </RequireSession>
           }
         />
@@ -84,7 +85,7 @@ export default function App() {
           path="/doctor"
           element={
             <RequireSession>
-              <DoctorDashboard />
+              <RequireSession role="doctor"><DoctorDashboard /></RequireSession>
             </RequireSession>
           }
         />

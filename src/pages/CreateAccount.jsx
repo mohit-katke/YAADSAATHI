@@ -77,7 +77,7 @@ export default function CreateAccount() {
       navigate(result.path)
     } catch (err) {
       setError(err?.code === 'caregiver-not-found'
-        ? 'Caregiver ID not found. Please check the ID and try again.'
+        ? 'Caregiver ID not found. Please check the ID provided by your caregiver.'
         : t('errDuplicate'))
     } finally {
       setBusy(false)

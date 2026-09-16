@@ -25,6 +25,7 @@ import {
   listDailyTasks,
   completeDailyTask,
   completeReminder,
+  pullCloudData,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
@@ -75,6 +76,7 @@ export default function CaregiverDashboard() {
   useEffect(() => {
     let cancelled = false
     async function load() {
+      await pullCloudData(user).catch(() => {})
       const pending = await listPendingRelationships(user)
       setRequests(await Promise.all(pending.map(async (request) => ({ ...request, patient: await getUser(request.patientId) }))))
       const linked = await getAuthorizedPatient(user)
@@ -227,7 +229,7 @@ export default function CaregiverDashboard() {
               <div key={request.id} className="rounded-2xl bg-cream p-4">
                 <p className="text-lg font-bold">{request.patient?.fullName || 'Patient'} wants to connect with you as their caregiver.</p>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); setRequests((current) => current.filter((item) => item.id !== request.id)); window.location.reload() }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); const linked = await getAuthorizedPatient(user); if (linked) { setPatient(linked); await reload(linked.id) }; setRequests((current) => current.filter((item) => item.id !== request.id)); setToast('Patient connection accepted.') }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
                   <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'rejected', user); setRequests((current) => current.filter((item) => item.id !== request.id)) }} className="min-h-12 rounded-xl bg-orange text-base font-extrabold text-white">Reject</button>
                 </div>
               </div>
