@@ -310,7 +310,26 @@ export async function updateUserLanguages(userId, textLang, voiceLang) {
 
 export async function getReminders(userId) {
   const rows = await db.reminders.where('userId').equals(userId).toArray()
-  return rows.length ? rows : []
+  return rows.sort((left, right) => {
+    const leftMinutes = reminderTimeToMinutes(left.time)
+    const rightMinutes = reminderTimeToMinutes(right.time)
+    if (leftMinutes !== rightMinutes) return leftMinutes - rightMinutes
+    return (left.createdAt || 0) - (right.createdAt || 0)
+  })
+}
+
+function reminderTimeToMinutes(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i)
+  if (!match) return Number.MAX_SAFE_INTEGER
+  let hours = Number(match[1])
+  const minutes = Number(match[2] || 0)
+  const meridiem = match[3]?.toUpperCase()
+  if (minutes > 59 || hours > 23 || (meridiem && hours > 12)) return Number.MAX_SAFE_INTEGER
+  if (meridiem) {
+    if (hours === 12) hours = 0
+    if (meridiem === 'PM') hours += 12
+  }
+  return hours * 60 + minutes
 }
 
 export async function saveReminder(reminder) {

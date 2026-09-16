@@ -134,7 +134,7 @@ export default function PatientDashboard() {
                 <p className="text-base text-muted">{item.time}</p>
               </div>
               <span className={`text-lg font-extrabold ${item.done ? 'text-green-dark' : 'text-orange-dark'}`}>
-                {item.done ? t('done') : t('soon')}
+                {item.done ? t('done') : t('next')}
               </span>
             </li>
           ))}
