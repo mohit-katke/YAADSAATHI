@@ -25,11 +25,16 @@ import {
   listDailyTasks,
   completeDailyTask,
   completeReminder,
-  pullCloudData,
+  updateReminder,
+  deleteReminder,
+  deleteDailyTask,
+  getStoryRecallQuestionCount,
+  saveStoryRecallQuestionCount,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import RecognitionContentManager from '../components/RecognitionContentManager'
+import AIInsight from '../components/AIInsight'
 
 export default function CaregiverDashboard() {
   const { user } = useAuth()
@@ -52,6 +57,8 @@ export default function CaregiverDashboard() {
   const [requests, setRequests] = useState([])
   const [tasks, setTasks] = useState([])
   const [taskTitle, setTaskTitle] = useState('')
+  const [editingReminder, setEditingReminder] = useState(null)
+  const [storyRecallQuestionCount, setStoryRecallQuestionCount] = useState(5)
 
   async function reload(userId) {
     const [rems, games, history, authz, familiarPeople, familiarPlaces, familiarThings] = await Promise.all([
@@ -71,12 +78,12 @@ export default function CaregiverDashboard() {
     setPlaces(familiarPlaces)
     setThings(familiarThings)
     setTasks(await listDailyTasks(userId, new Date().toISOString().slice(0, 10)))
+    setStoryRecallQuestionCount(await getStoryRecallQuestionCount(userId))
   }
 
   useEffect(() => {
     let cancelled = false
     async function load() {
-      await pullCloudData(user).catch(() => {})
       const pending = await listPendingRelationships(user)
       setRequests(await Promise.all(pending.map(async (request) => ({ ...request, patient: await getUser(request.patientId) }))))
       const linked = await getAuthorizedPatient(user)
@@ -110,6 +117,33 @@ export default function CaregiverDashboard() {
     await reload(patientId)
     setOpen(false)
     setToast(t('reminderSaved'))
+  }
+
+  async function updateStoryRecallQuestionCount(event) {
+    const value = Number(event.target.value)
+    if (!patientId) return
+    try {
+      await saveStoryRecallQuestionCount(patientId, value, user)
+      setStoryRecallQuestionCount(value)
+      setToast('Story Recall question count saved.')
+    } catch {
+      setToast('You are not authorized to change this setting.')
+    }
+  }
+
+  async function editReminderForm(event) {
+    event.preventDefault()
+    if (!patientId || !editingReminder) return
+    await updateReminder(editingReminder.id, patientId, { time: editingReminder.time, text: editingReminder.text })
+    setEditingReminder(null)
+    await reload(patientId)
+    setToast(t('reminderSaved'))
+  }
+
+  async function removeReminder(item) {
+    if (!patientId || !window.confirm(`Delete reminder “${item.text}”?`)) return
+    await deleteReminder(item.id, patientId)
+    await reload(patientId)
   }
 
   async function addTaskForm(event) {
@@ -229,7 +263,7 @@ export default function CaregiverDashboard() {
               <div key={request.id} className="rounded-2xl bg-cream p-4">
                 <p className="text-lg font-bold">{request.patient?.fullName || 'Patient'} wants to connect with you as their caregiver.</p>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); const linked = await getAuthorizedPatient(user); if (linked) { setPatient(linked); await reload(linked.id) }; setRequests((current) => current.filter((item) => item.id !== request.id)); setToast('Patient connection accepted.') }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); setRequests((current) => current.filter((item) => item.id !== request.id)); window.location.reload() }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
                   <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'rejected', user); setRequests((current) => current.filter((item) => item.id !== request.id)) }} className="min-h-12 rounded-xl bg-orange text-base font-extrabold text-white">Reject</button>
                 </div>
               </div>
@@ -273,15 +307,17 @@ export default function CaregiverDashboard() {
         <h2 className="text-xl font-extrabold">{t('reminders')}</h2>
         <div className="mt-3 space-y-2">
           {reminders.length ? reminders.map((item) => (
-            <label key={item.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
+            <div key={item.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
               <input
                 type="checkbox"
                 checked={Boolean(item.done)}
                 onChange={async (event) => { await completeReminder(item.id, patientId, event.target.checked); await reload(patientId) }}
                 className="h-6 w-6"
               />
-              <span className={item.done ? 'text-muted line-through' : ''}>{item.text} · {item.time}</span>
-            </label>
+              <span className={`flex-1 ${item.done ? 'text-muted line-through' : ''}`}>{item.text} · {item.time}</span>
+              <button type="button" onClick={() => setEditingReminder(item)} className="rounded-lg border border-line px-2 py-1 text-sm">Edit</button>
+              <button type="button" onClick={() => removeReminder(item)} className="rounded-lg bg-orange px-2 py-1 text-sm text-white">Delete</button>
+            </div>
           )) : <p className="text-muted">No reminders yet.</p>}
         </div>
       </section>
@@ -294,15 +330,39 @@ export default function CaregiverDashboard() {
         </form>
         <div className="mt-3 space-y-2">
           {tasks.length ? tasks.map((task) => (
-            <label key={task.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
+            <div key={task.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
               <input type="checkbox" checked={task.completed} onChange={async (event) => { await completeDailyTask(task.id, patientId, event.target.checked); await reload(patientId) }} className="h-6 w-6" />
-              {task.title}
-            </label>
+              <span className="flex-1">{task.title}</span>
+              {task.completedAt ? <span className="text-sm text-muted">{new Date(task.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
+              <button type="button" onClick={async () => { if (window.confirm(`Delete task “${task.title}”?`)) { await deleteDailyTask(task.id, patientId, user.id); await reload(patientId) } }} className="rounded-lg bg-orange px-2 py-1 text-sm text-white">Delete</button>
+            </div>
           )) : <p className="text-muted">No daily tasks yet.</p>}
         </div>
       </section>
 
+      {editingReminder ? (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30 p-5">
+          <form onSubmit={editReminderForm} className="w-full max-w-md rounded-3xl bg-paper p-5 shadow-xl">
+            <h2 className="text-xl font-extrabold">Edit reminder</h2>
+            <input value={editingReminder.text} onChange={(event) => setEditingReminder((current) => ({ ...current, text: event.target.value }))} className="mt-3 min-h-12 w-full rounded-xl border-2 border-line bg-cream px-3 text-lg" />
+            <input value={editingReminder.time} onChange={(event) => setEditingReminder((current) => ({ ...current, time: event.target.value }))} className="mt-3 min-h-12 w-full rounded-xl border-2 border-line bg-cream px-3 text-lg" />
+            <div className="mt-4 flex gap-2">
+              <button type="submit" className="min-h-12 flex-1 rounded-xl bg-green font-extrabold text-white">Save</button>
+              <button type="button" onClick={() => setEditingReminder(null)} className="min-h-12 flex-1 rounded-xl border-2 border-line font-extrabold">Cancel</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       <RecognitionContentManager patientId={patient?.id} role="caregiver" />
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Story Recall Questions</h2>
+        <p className="mt-1 text-muted">Choose the maximum number of questions for the connected patient.</p>
+        <select value={storyRecallQuestionCount} onChange={updateStoryRecallQuestionCount} className="mt-3 min-h-12 w-full rounded-xl border-2 border-line bg-cream px-3 text-lg">
+          {[5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </section>
 
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">Familiar People & Places</h2>
@@ -331,6 +391,8 @@ export default function CaregiverDashboard() {
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <BarChart data={trend} label={t('activityWeek')} />
       </section>
+
+      <AIInsight sessions={sessions} title="AI Activity Summary" />
 
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('authorizeDoctor')}</h2>

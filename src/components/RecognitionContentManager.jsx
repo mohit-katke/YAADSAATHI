@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { deleteRecognitionItem, listRecognitionItems, saveRecognitionItem } from '../db/repo'
 
 const CATEGORIES = [
@@ -32,14 +32,14 @@ export default function RecognitionContentManager({ patientId, role }) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  async function reload() {
+  const reload = useCallback(async () => {
     if (!patientId) return
     setItems(await listRecognitionItems(patientId))
-  }
+  }, [patientId])
 
   useEffect(() => {
     reload()
-  }, [patientId])
+  }, [reload])
 
   function updateForm(patch) {
     setForm((current) => ({ ...current, ...patch }))

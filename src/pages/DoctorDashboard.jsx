@@ -14,22 +14,21 @@ import {
   listFamiliarPlaces,
   listFamiliarThings,
   saveDifficultyCap,
-  saveFamiliarPerson,
-  saveFamiliarPlace,
-  saveFamiliarThing,
   saveSettings,
   saveRecognitionItem,
+  getStoryRecallQuestionCount,
+  saveStoryRecallQuestionCount,
   listPendingRelationships,
   updateRelationshipStatus,
   getUser,
   addDailyTask,
   listDailyTasks,
   completeDailyTask,
-  pullCloudData,
 } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import RecognitionContentManager from '../components/RecognitionContentManager'
+import AIInsight from '../components/AIInsight'
 
 export default function DoctorDashboard() {
   const { user } = useAuth()
@@ -48,6 +47,7 @@ export default function DoctorDashboard() {
   const [requests, setRequests] = useState([])
   const [tasks, setTasks] = useState([])
   const [taskTitle, setTaskTitle] = useState('')
+  const [storyRecallQuestionCount, setStoryRecallQuestionCount] = useState(5)
 
   function newContentForm(category) {
     return {
@@ -70,7 +70,6 @@ export default function DoctorDashboard() {
   useEffect(() => {
     let cancelled = false
     async function load() {
-      await pullCloudData(user).catch(() => {})
       const pending = await listPendingRelationships(user)
       setRequests(await Promise.all(pending.map(async (request) => ({ ...request, patient: await getUser(request.patientId) }))))
       const linked = await getAuthorizedPatient(user)
@@ -90,6 +89,7 @@ export default function DoctorDashboard() {
       setPeople(familiarPeople)
       setPlaces(familiarPlaces)
       setThings(familiarThings)
+      setStoryRecallQuestionCount(await getStoryRecallQuestionCount(linked.id))
       setTasks(await listDailyTasks(linked.id, new Date().toISOString().slice(0, 10)))
     }
     load()
@@ -120,6 +120,18 @@ export default function DoctorDashboard() {
     setCap(level)
     await saveDifficultyCap(patient.id, level)
     setToast(`${t('currentCap')}: ${level}`)
+  }
+
+  async function updateStoryRecallQuestionCount(event) {
+    const value = Number(event.target.value)
+    if (!patient) return
+    try {
+      await saveStoryRecallQuestionCount(patient.id, value, user)
+      setStoryRecallQuestionCount(value)
+      setToast('Story Recall question count saved.')
+    } catch {
+      setToast('You are not authorized to change this setting.')
+    }
   }
 
   async function saveFeedback() {
@@ -233,7 +245,7 @@ export default function DoctorDashboard() {
               <div key={request.id} className="rounded-2xl bg-cream p-4">
                 <p className="text-lg font-bold">{request.patient?.fullName || 'Patient'} wants to connect with you as their doctor.</p>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); setRequests((current) => current.filter((item) => item.id !== request.id)); setToast('Patient connection accepted.'); window.location.reload() }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
+                  <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'accepted', user); setRequests((current) => current.filter((item) => item.id !== request.id)); window.location.reload() }} className="min-h-12 rounded-xl bg-green text-base font-extrabold text-white">Accept</button>
                   <button type="button" onClick={async () => { await updateRelationshipStatus(request.id, 'rejected', user); setRequests((current) => current.filter((item) => item.id !== request.id)) }} className="min-h-12 rounded-xl bg-orange text-base font-extrabold text-white">Reject</button>
                 </div>
               </div>
@@ -334,6 +346,8 @@ export default function DoctorDashboard() {
         <LineChart data={latencyData} label={t('latencyTrend')} />
       </section>
 
+      <AIInsight sessions={sessions} title="AI Activity Summary" />
+
       <section className="mt-4 overflow-x-auto rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('sessionHistory')}</h2>
         <table className="mt-3 w-full min-w-[520px] text-left text-lg">
@@ -382,6 +396,14 @@ export default function DoctorDashboard() {
         <p className="mt-3 text-lg font-bold">
           {t('currentCap')}: {cap}
         </p>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-line bg-paper p-5">
+        <h2 className="text-xl font-extrabold">Story Recall Questions</h2>
+        <p className="mt-1 text-muted">Choose the maximum number of questions for the connected patient.</p>
+        <select value={storyRecallQuestionCount} onChange={updateStoryRecallQuestionCount} className="mt-3 min-h-12 w-full rounded-xl border-2 border-line bg-cream px-3 text-lg">
+          {[5, 10, 15, 20].map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
       </section>
 
       <section className="mt-4 rounded-3xl border border-line bg-paper p-5">

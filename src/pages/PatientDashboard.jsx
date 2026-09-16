@@ -2,22 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
 import OfflineBanner from '../components/OfflineBanner'
-import { completeDailyTask, completeReminder, getLinkedPatient, listDailyTasks, listGameScores, getReminders, listRelationshipsForUser, pullCloudData, requestCareTeamMember } from '../db/repo'
+import { completeReminder, getLinkedPatient, listCognitiveSessions, listGameScores, getReminders, listRelationshipsForUser } from '../db/repo'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import { voiceEngine } from '../voice/speech'
+import AIInsight from '../components/AIInsight'
 
 export default function PatientDashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { t, tVoice, voiceLang, voiceEnabled } = useI18n()
+  const { t, tVoice, voiceLang } = useI18n()
   const [patient, setPatient] = useState(null)
   const [reminders, setReminders] = useState([])
   const [scores, setScores] = useState([])
+  const [activitySessions, setActivitySessions] = useState([])
   const [relationships, setRelationships] = useState([])
-  const [tasks, setTasks] = useState([])
-  const [doctorId, setDoctorId] = useState('')
-  const [teamMessage, setTeamMessage] = useState('')
 
   async function toggleReminder(item, done) {
     const updated = await completeReminder(item.id, patient?.id || user.id, done)
@@ -27,16 +26,20 @@ export default function PatientDashboard() {
   useEffect(() => {
     let cancelled = false
     async function load() {
-      await pullCloudData(user).catch(() => {})
       const linked = await getLinkedPatient(user)
       const userId = linked?.id || user.id
-      const [rems, games, links, daily] = await Promise.all([getReminders(userId), listGameScores(userId), listRelationshipsForUser(user), listDailyTasks(userId, new Date().toISOString().slice(0, 10))])
+      const [rems, games, history, links] = await Promise.all([
+        getReminders(userId),
+        listGameScores(userId),
+        listCognitiveSessions(userId),
+        listRelationshipsForUser(user),
+      ])
       if (cancelled) return
       setPatient(linked || user)
       setReminders(rems)
       setScores(games)
+      setActivitySessions(history)
       setRelationships(links)
-      setTasks(daily)
     }
     load()
     return () => {
@@ -51,20 +54,8 @@ export default function PatientDashboard() {
   }, [scores.length])
 
   function go(path, promptKey) {
-    if (voiceEnabled) voiceEngine.speak(tVoice(promptKey), voiceLang)
+    voiceEngine.speak(tVoice(promptKey), voiceLang)
     navigate(path)
-  }
-
-  async function addDoctor(event) {
-    event.preventDefault()
-    try {
-      const row = await requestCareTeamMember(patient || user, doctorId, 'doctor')
-      setRelationships((current) => [...current.filter((item) => item.id !== row.id), row])
-      setDoctorId('')
-      setTeamMessage('Doctor request sent. Access begins only after acceptance.')
-    } catch {
-      setTeamMessage('Doctor ID not found. Please check the ID provided by your doctor.')
-    }
   }
 
   return (
@@ -105,11 +96,6 @@ export default function PatientDashboard() {
             {relationship.role === 'caregiver' ? 'Caregiver' : 'Doctor'}: {relationship.status}
           </p>
         )) : <p className="mt-2 text-muted">No care team connections yet.</p>}
-        <form onSubmit={addDoctor} className="mt-4 flex gap-2">
-          <input value={doctorId} onChange={(event) => setDoctorId(event.target.value)} placeholder="Doctor ID" className="min-h-12 min-w-0 flex-1 rounded-xl border-2 border-line bg-cream px-3 text-lg" />
-          <button type="submit" className="min-h-12 rounded-xl bg-blue px-4 font-extrabold text-white">Add Doctor</button>
-        </form>
-        {teamMessage ? <p className="mt-2 font-bold text-muted">{teamMessage}</p> : null}
       </section>
 
       <div className="mt-5 grid gap-3">
@@ -129,19 +115,6 @@ export default function PatientDashboard() {
       </section>
 
       <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
-        <h2 className="text-xl font-extrabold">Daily Tasks</h2>
-        {tasks.length ? <div className="mt-3 space-y-2">{tasks.map((task) => (
-          <label key={task.id} className="flex items-center gap-3 rounded-xl bg-cream p-3 text-lg font-bold">
-            <input type="checkbox" checked={Boolean(task.completed)} onChange={async (event) => {
-              const updated = await completeDailyTask(task.id, patient?.id || user.id, event.target.checked)
-              if (updated) setTasks((current) => current.map((row) => row.id === updated.id ? updated : row))
-            }} className="h-6 w-6" />
-            <span className={task.completed ? 'line-through text-muted' : ''}>{task.title}{task.dueTime ? ` · ${task.dueTime}` : ''}</span>
-          </label>
-        ))}</div> : <p className="mt-2 text-muted">No daily tasks yet.</p>}
-      </section>
-
-      <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('sessionSummary')}</h2>
         {latest ? (
           <p className="mt-2 text-lg font-semibold">
@@ -151,6 +124,8 @@ export default function PatientDashboard() {
           <p className="mt-2 text-lg text-muted">No sessions yet. Complete an activity to see progress.</p>
         )}
       </section>
+
+      <AIInsight sessions={activitySessions.length ? activitySessions : scores} />
 
       <section className="mt-5 rounded-3xl border border-line bg-paper p-5">
         <h2 className="text-xl font-extrabold">{t('reminders')}</h2>

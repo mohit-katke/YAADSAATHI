@@ -32,6 +32,13 @@ function findBrowserVoice(langId, list) {
     const loose = list.find((v) => languageMatches(v.lang, code))
     if (loose) return { voice: loose, matchedLang: langId, fallback: false }
   }
+  if (langId !== 'en') {
+    for (const code of LANG_TO_BCP47.en) {
+      const fallback = list.find((v) => v.lang?.toLowerCase() === code.toLowerCase())
+        || list.find((v) => languageMatches(v.lang, code))
+      if (fallback) return { voice: fallback, matchedLang: 'en', fallback: true }
+    }
+  }
   return {
     voice: null,
     matchedLang: langId,
@@ -101,6 +108,9 @@ export const voiceEngine = {
   speak(text, langId, hooks) {
     return speakWithBrowser(text, langId, hooks)
   },
+  cancel() {
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel()
+  },
   warm() {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
     refreshVoices()
@@ -111,25 +121,40 @@ export const voiceEngine = {
   subscribeToVoiceChanges,
 }
 
-export function startSpeechRecognition({ lang = 'en', onResult, onError, onEnd } = {}) {
-  if (typeof window === 'undefined') return { ok: false, reason: 'unsupported', stop: () => {} }
+// Speech recognition is deliberately browser-only. Callers can use the
+// returned `supported` flag to keep the text controls available everywhere.
+export function recognizeOnce(langId, { onResult, onStart, onEnd, onError } = {}) {
+  if (typeof window === 'undefined') return { supported: false, cancel() {} }
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
-  if (!Recognition) return { ok: false, reason: 'unsupported', stop: () => {} }
+  if (!Recognition) return { supported: false, cancel() {} }
   const recognition = new Recognition()
-  recognition.lang = (LANG_TO_BCP47[lang] || LANG_TO_BCP47.en)[0]
+  recognition.lang = (LANG_TO_BCP47[langId] || LANG_TO_BCP47.en)[0] || 'en-US'
   recognition.interimResults = false
-  recognition.maxAlternatives = 3
+  recognition.continuous = false
+  recognition.maxAlternatives = 1
+  let ended = false
+  recognition.onstart = () => onStart?.()
   recognition.onresult = (event) => {
-    const alternatives = Array.from(event.results?.[0] || []).map((item) => item.transcript)
-    onResult?.(alternatives)
+    const result = event.results?.[0]
+    if (!result?.isFinal) return
+    const text = event.results[0][0].transcript.trim()
+    if (text) onResult?.(text)
   }
-  recognition.onerror = (event) => onError?.(event.error || 'recognition-error')
-  recognition.onend = () => onEnd?.()
+  recognition.onerror = (event) => onError?.(event)
+  recognition.onend = () => {
+    ended = true
+    onEnd?.()
+  }
   try {
     recognition.start()
-    return { ok: true, stop: () => recognition.stop() }
   } catch (error) {
-    onError?.(error?.message || 'recognition-error')
-    return { ok: false, reason: 'start-failed', stop: () => {} }
+    onError?.(error)
+  }
+  return {
+    supported: true,
+    cancel() {
+      if (ended) return
+      try { recognition.abort() } catch { /* recognition already stopped */ }
+    },
   }
 }

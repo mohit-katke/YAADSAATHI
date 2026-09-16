@@ -22,6 +22,9 @@ service cloud.firestore {
     function canAccessPatient(patientId) {
       return isSelf(patientId) || acceptedCaregiver(patientId) || acceptedDoctor(patientId);
     }
+    function canManagePatient(patientId) {
+      return acceptedCaregiver(patientId) || acceptedDoctor(patientId);
+    }
 
     match /users/{uid} {
       allow create: if isSelf(uid) && request.resource.data.uid == request.auth.uid;
@@ -76,6 +79,13 @@ service cloud.firestore {
       allow read: if canAccessPatient(resource.data.patientId);
       allow update: if canAccessPatient(resource.data.patientId) && request.resource.data.patientId == resource.data.patientId;
       allow delete: if canAccessPatient(resource.data.patientId);
+    }
+    match /settings/{recordId} {
+      allow create: if signedIn() && canManagePatient(request.resource.data.patientId);
+      allow read: if canAccessPatient(resource.data.patientId);
+      allow update: if canManagePatient(resource.data.patientId) &&
+        request.resource.data.patientId == resource.data.patientId;
+      allow delete: if false;
     }
     match /telemetry/{recordId} {
       allow create: if signedIn() && request.resource.data.patientId == request.auth.uid;

@@ -82,7 +82,8 @@ export default function DailyRoutine() {
               <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-current">
                 {item.completed ? '✓' : ''}
               </span>
-              {item.title}
+              <span className="flex-1">{item.title}</span>
+              {item.completedAt ? <span className="text-sm text-muted">{new Date(item.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
             </button>
           </li>
         ))}
